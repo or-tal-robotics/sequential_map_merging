@@ -4,10 +4,8 @@
   <version>0.0.0</version>
   <description>The DMM package</description>
 
-  <!-- One maintainer tag required, multiple allowed, one person per tag -->
-  <!-- Example:  -->
-  <!-- <maintainer email="jane.doe@example.com">Jane Doe</maintainer> -->
-  <maintainer email="matan@todo.todo">matan</maintainer>
+  
+  <maintainer email="mattan.sa@gmail.com">matan</maintainer>
 
 
   <!-- One license tag required, multiple allowed, one license per tag -->
