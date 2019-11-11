@@ -1,0 +1,9 @@
+<?xml version="1.0"?>
+
+<launch>
+
+<node pkg="rosbag" type="play" name="player1" output="screen" args="--clock /home/matan/catkin_ws/records/abot1_2019-11-09-14-49-14.bag"/>
+
+<node pkg="rosbag" type="play" name="player2" output="screen" args="--clock /home/matan/catkin_ws/records/abot2_2019-11-09-14-59-17.bag"/>
+
+</launch>

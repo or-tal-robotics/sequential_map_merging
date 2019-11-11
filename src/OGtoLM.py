@@ -41,16 +41,16 @@ class maps:
             if (self.started1):
 
                 a = self.map1_LM.ravel()
-                print a.shape
+                #print a.shape
                 self.pub1.publish(a)
-                print "landmarks array of map 1 is passed"
+                #print "landmarks array of map 1 is passed"
            
             if (self.started2):
 
                 a = self.map2_LM.ravel()
-                print a.shape
+                #print a.shape
                 self.pub2.publish(a)
-                print "landmarks array of map 2 is passed"
+                #print "landmarks array of map 2 is passed"
 
             r.sleep()        
 
@@ -88,7 +88,7 @@ class maps:
 
 def listener():
 
-    print "Running"
+    print "init     convert map to landmarks"
     LM_maps = maps() # convert maps to landmarks arrays
     rospy.spin()
 

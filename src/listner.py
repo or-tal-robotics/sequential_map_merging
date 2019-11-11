@@ -52,11 +52,9 @@ class tPF():
                 plt.pause(0.05)
                 plt.clf()
 
-                if self.maxt.w[0] > 500 :
+                if self.maxt.score > 4 :
                     self.resample()
 
-
-                print ("Iteration complete")
 
 
     def resample(self):
@@ -107,12 +105,12 @@ class tPF():
             i.weight(self.oMap.map , tempMap)
       
         
-        maxt = max(self.Rot , key = operator.attrgetter('w')) # finds partical with maximum liklihood
+        maxt = max(self.Rot , key = operator.attrgetter('score')) # finds partical with maximum liklihood
 
         if maxt.w[0] > self.indicator: # check if the new partical is better then previuos partical
 
             self.maxt = maxt
-            print 'max W:' ,self.maxt.w[0] ,self.maxt.theta
+            print 'max W:' ,self.maxt.score ,self.maxt.theta
             self.maxMap = self.tMap.rotate(self.maxt.x ,self.maxt.y , self.maxt.theta )
             self.indicator =  maxt.w[0]
 
@@ -156,6 +154,7 @@ class rot(object):
          self.y = yShift
          self.w = [0]
          self.score = 0 
+
          
     def weight(self , oMap , tMap):
         
@@ -167,9 +166,11 @@ class rot(object):
         # find the propability 
         prob = (1/(np.sqrt(2*np.pi*var)))*np.exp(-np.power(distances,2)/(2*var)) 
         # returm the 'weight' of this transformation
-        wiegth =np.sum((prob)) #np.sum((prob)/np.prod(distances.shape)) 
+        wiegth = np.sum((prob)/np.prod(distances.shape)) #np.sum(prob)
         
         self.w.insert(0,wiegth)
+
+        self.score += wiegth
 
 class maps:
 
