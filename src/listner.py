@@ -15,7 +15,7 @@ from rospy.numpy_msg import numpy_msg # for landmarks array
 import matplotlib.pyplot as plt
 from sklearn.neighbors import NearestNeighbors # for KNN algorithm
 from geometry_msgs.msg import Transform # for transpose of map
-
+import operator
 
 
 
@@ -34,15 +34,59 @@ class tPF():
         # convert maps to landmarks arrays:
         self.oMap = maps("LM1") 
         self.tMap = maps("LM2")
+        self.bMap = []
+        self.indicator = 0
+
+        plt.axis([-60, 60, -60, 60])
 
         while not rospy.is_shutdown():
+
             a , b = self.oMap.started ,self.tMap.started  # self.maps.started : indicate if map recieved
             if a and b:
-                self.startPF()
 
-                print "one iteration over"
+                self.likelihood_PF()
 
-    def initialize_PF( self , angles =np.linspace(0 , 360 , 40) , xRange = np.linspace(-10 , 10 , 10) , yRange = np.linspace(-10 , 10 ,10) ):
+                plt.axis([-30, 30, -30, 30])
+                plt.scatter(self.maxMap[: , 0] ,self.maxMap[:,1] , color = 'b')
+                plt.scatter(self.oMap.map[: , 0] ,self.oMap.map[:,1] ,color = 'r')
+                plt.pause(0.05)
+                plt.clf()
+
+                if self.maxt.w[0] > 500 :
+                    self.resample()
+
+
+                print ("Iteration complete")
+
+
+    def resample(self):
+
+        mu_theta = self.maxt.theta
+        mu_x = self.maxt.x
+        mu_y = self.maxt.y
+        
+        sigmaT = 5
+        sigmaS = 2
+
+        #Draw random samples from a normal (Gaussian) distribution.
+        angles = s = np.random.normal(mu_theta, sigmaT , 10)
+        xRange = s = np.random.normal(mu_x, sigmaS, 10)
+        yRange = s = np.random.normal(mu_y, sigmaS, 10)
+
+        # make a list of class rot(s)
+        self.Rot = []
+
+        for i in range(len(angles)):
+            for j in range(len(xRange)):
+                for k in range(len(yRange)):
+                    self.Rot.append(rot(angles[i] , xRange[j] , yRange[k]))
+        
+        print ("Resample PF whith") , len(self.Rot) ,(" samples completed")
+
+
+
+
+    def initialize_PF( self , angles = np.linspace(0 , 360 , 40) , xRange = np.linspace(-10 , 10 , 10) , yRange = np.linspace(-10 , 10 ,10) ):
        
         # make a list of class rot(s)
         self.Rot = []
@@ -52,37 +96,40 @@ class tPF():
                 for k in range(len(yRange)):
                     self.Rot.append(rot(angles[i] , xRange[j] , yRange[k]))
         
-        self.Rot.append(rot(30 , 10 , 10))
-        
         print ("initialaize PF whith") , len(self.Rot) ,(" samples completed")
 
-    def startPF(self):
+    def likelihood_PF(self):
 
-        #temporry fubction for test
-        x = 0.35
-        y = -1.2
-        theta = 89
-        tempMap = self.tMap.rotate(x ,y , theta)
-
-
-        #plt.scatter(tempMap[: , 0] ,tempMap[:,1])
-        #plt.scatter(self.oMap.map[: , 0] ,self.oMap.map[:,1])
-        #plt.show(block =True)
+        for i in self.Rot:
+            
+            # 'tempMao' ->  map after transformation the secondery map [T(tMap)]:
+            tempMap = self.tMap.rotate(i.x ,i.y , i.theta)
+            i.weight(self.oMap.map , tempMap)
+      
         
-        i = rot(theta,x,y)
-        i.weight(self.oMap.map , tempMap)
-        print i.w
+        maxt = max(self.Rot , key = operator.attrgetter('w')) # finds partical with maximum liklihood
 
-        bestT = Transform()
-        bestT.translation.x = i.x + self.tMap.cm[0] + 4
-        bestT.translation.y = i.y + self.tMap.cm[1] - 1
-        bestT.rotation.z = i.theta  + np.radians(-4)
-        self.pub.publish(bestT)
+        if maxt.w[0] > self.indicator: # check if the new partical is better then previuos partical
 
-        #here is stoped - need to anderstand the rotation of the img 
+            self.maxt = maxt
+            print 'max W:' ,self.maxt.w[0] ,self.maxt.theta
+            self.maxMap = self.tMap.rotate(self.maxt.x ,self.maxt.y , self.maxt.theta )
+            self.indicator =  maxt.w[0]
+
     
 
     def startPF2(self):
+
+    
+        x = -1.45
+        y = -3.5
+        theta = 90
+        self.bMap = self.tMap.rotate(x ,y , theta)
+        
+        i = rot(theta,x,y)
+        i.weight(self.oMap.map , self.bMap )
+        print 'True W:',(i.w)
+
         
         r = rospy.Rate(0.1) # 0.1 hz
         for i in self.Rot:
@@ -104,24 +151,25 @@ class rot(object):
 
     def __init__(self , theta , xShift , yShift):
         
-         self.theta = np.radians(theta)
+         self.theta = theta
          self.x = xShift
          self.y = yShift
-         self.w = []
+         self.w = [0]
+         self.score = 0 
          
     def weight(self , oMap , tMap):
         
         var = 0.16
         # initial KNN with the original map 
-        nbrs = NearestNeighbors(n_neighbors= 1, algorithm='ball_tree').fit(oMap)
+        nbrs = NearestNeighbors(n_neighbors= 2, algorithm='ball_tree').fit(oMap)
         # fit data of map 2 to map 1  
         distances, indices = nbrs.kneighbors(tMap)
         # find the propability 
         prob = (1/(np.sqrt(2*np.pi*var)))*np.exp(-np.power(distances,2)/(2*var)) 
         # returm the 'weight' of this transformation
-        wiegth =np.sum((prob)/np.prod(distances.shape)) #np.sum((prob)/np.prod(distances.shape)) 
+        wiegth =np.sum((prob)) #np.sum((prob)/np.prod(distances.shape)) 
         
-        self.w.append(wiegth)
+        self.w.insert(0,wiegth)
 
 class maps:
 
@@ -144,17 +192,12 @@ class maps:
         if self.check:
             # determin the center of the map for initilaized map origin
             self.cm = np.sum(np.transpose(landmarks),axis=1)/len(landmarks)
-            print 'set origin of: ' ,  self.name
+            print ('set origin of: ' ), (self.name)
             self.check = False
             
         self.map = np.array(landmarks , dtype= "int32") - self.cm.T
         #print self.map
         self.started = True
-
-    def plot(self):
-
-        plt.scatter(self.map[: , 0] ,self.map[:,1])
-        plt.show(block =True)
 
     def rotate(self, xShift, yShift , RotationAngle): #rotat map
       
@@ -170,7 +213,7 @@ class maps:
    
 if __name__ == '__main__':
    
-    print "Running"
+    print ("Running")
     PFtry = tPF() # 'tPF' : transportation Partical Filter
     rospy.spin()  
     
