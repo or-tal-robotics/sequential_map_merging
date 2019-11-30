@@ -25,8 +25,8 @@ class maps:
         self.started1 = False  # 'started': if map recived -> true
         self.started2 = False
 
-        self.pub1 = rospy.Publisher('LM1', numpy_msg(Floats),queue_size=10)  # publisher of landmarks of map 1
-        self.pub2 = rospy.Publisher('LM2', numpy_msg(Floats),queue_size=10)  # publisher of landmarks of map 2
+        self.pub1 = rospy.Publisher('LM1', numpy_msg(Floats),queue_size=1)  # publisher of landmarks of map 1
+        self.pub2 = rospy.Publisher('LM2', numpy_msg(Floats),queue_size=1)  # publisher of landmarks of map 2
     
         self.map1_LM = None
         self.map2_LM = None 
