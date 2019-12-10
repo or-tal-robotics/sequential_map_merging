@@ -21,7 +21,7 @@
 
 
   <node name="joy_node_ABot" pkg="joy" type="joy_node" output="screen">
-  <param name="dev" value="/dev/input/js0" />
+  <param name="dev" value="/dev/input/js1" />
   <remap from="/joy" to="/ABot/joy"/>
   </node>
   <node name="joystick_controler_ABot" pkg="SLAM" type="joystick_controler_new.py" output="screen">
@@ -80,11 +80,11 @@
   </node>
 <param name="robot_description2" command="$(find xacro)/xacro '$(find DMM)/urdf/ABot.urdf.xacro'" />
   <!-- push ABot_description to factory and spawn robot in gazebo -->
-  <node name="spawn_ABot" pkg="gazebo_ros" type="spawn_model" args=" -x -14 -y 2 -Y 1.5 -urdf -model ABot2 -param robot_description2" respawn="false" output="screen" />
+  <node name="spawn_ABot" pkg="gazebo_ros" type="spawn_model" args=" -x 14 -y -3 -Y 2.86 -urdf -model ABot2 -param robot_description2" respawn="false" output="screen" />
 
 
   <node name="joy_node_ABot" pkg="joy" type="joy_node" output="screen">
-  <param name="dev" value="/dev/input/js1" />
+  <param name="dev" value="/dev/input/js0" />
   <remap from="/joy" to="/ABot2/joy"/>
   </node>
   <node name="joystick_controler_ABot" pkg="SLAM" type="joystick_controler_new.py" output="screen">
