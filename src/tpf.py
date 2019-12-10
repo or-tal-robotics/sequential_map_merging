@@ -32,8 +32,10 @@ class tPF():
         self.initialize_PF()
 
         # convert maps to landmarks arrays:
-        self.oMap = maps("LM1") 
+        self.oMap = maps("LM1")
+        self.anti_oMap = maps("LM1_anti")
         self.tMap = maps("LM2")
+        self.anti_tMap = maps("LM2_anti")
         self.best_score = 0
         self.realT = np.array([-1.5 , -2.5 , 90]) # real transformation
 
@@ -49,24 +51,24 @@ class tPF():
 
         while not rospy.is_shutdown():
 
-            a , b = self.oMap.started ,self.tMap.started  # self.maps.started : indicate if map recieved
         
-            if a and b:
+            if self.oMap.started and self.tMap.started and self.anti_oMap.started and self.anti_tMap.started:
                 
                 #init nbrs for KNN
                 self.nbrs = NearestNeighbors(n_neighbors= 1, algorithm='ball_tree').fit(self.oMap.map)
+                #self.nbrs_anti = NearestNeighbors(n_neighbors= 1, algorithm='ball_tree').fit(self.anti_oMap.map)
 
                 # DE algorithm for finding best match
                 #result = differential_evolution(self.func_de, bounds = [(-10,10),(-10,10),(0,360)] ,maxiter= 200 ,popsize=6,tol=0.0001)
                 #self.T_de = [result.x[0] , result.x[1] , min(result.x[2], 360 - result.x[2])] 
                 #print self.T_de
-
+                self.predict()
                 self.likelihood_PF()
                 print "N_eff=:"+str(self.N_eff)
                 self.resample_counter +=1
                 #print resample_counter
 
-                if self.N_eff < 0.0001 :
+                if self.N_eff < 0.0001 and self.resample_counter>10:
                     self.resampling() # start re-sampling step 
                     self.resample_counter = 0
 
@@ -126,7 +128,7 @@ class tPF():
         else:
             df.to_csv(f, sep='\t', header=False)
 
-    def initialize_PF( self , angles = np.linspace(0 , 360 , 45) , xRange = np.linspace(-20 , 20 , 10) , yRange = np.linspace(-10 , 10 ,10) ):
+    def initialize_PF( self , angles = np.linspace(0 , 360 , 10) , xRange = np.linspace(-10 , 10 , 10) , yRange = np.linspace(-10 , 10 ,10) ):
        
         # make a list of class rot(s)
         self.Rot = []
@@ -147,7 +149,9 @@ class tPF():
         for i in self.Rot:    
             # 'tempMap' ->  map after transformation the secondery map [T(tMap)]:
             tempMap = self.tMap.rotate(i.x ,i.y , i.theta)
-            i.weight(self.oMap.map , tempMap ,self.nbrs , factor)
+            tMap_anti = self.anti_tMap.rotate(i.x ,i.y , i.theta)
+            i.weight2(self.oMap.map , tempMap, self.anti_oMap.map , tMap_anti , self.nbrs , 0.5,  factor )
+            #i.weight(self.oMap.map , tempMap ,self.nbrs , factor)
             self.scores.append(i.score) # add weights to array 
         w = np.array(self.scores)
         self.N_eff = 1/np.sum(np.power(w,2))
@@ -179,6 +183,13 @@ class tPF():
         self.Rot = Rot_arr
         self.best_score = 0
         print 'resample done'
+
+    def predict(self):        
+
+        for i in range(len(self.Rot)):
+            self.Rot[i].theta += 0.1  * np.random.randn()
+            self.Rot[i].x += 0.05  * np.random.randn()
+            self.Rot[i].y += 0.05  * np.random.randn()
  
     def func_de(self , T):
 
@@ -244,12 +255,36 @@ class rot(object):
         wiegth = np.sum((prob)/prob.shape[0])+0.000001 #np.sum(prob) 
         
         self.score += wiegth * factor # sum up score
-    
+
+    def weight2(self , oMap , tMap, oMap_anti , tMap_anti , oMap_nbrs , alpha,  factor ):
+        var1 = 0.16
+        var2 = 0.26
+        # fit data of map 2 to map 1  
+        distances, indices = oMap_nbrs.kneighbors(tMap)
+        # find the propability 
+        prob1 = (1/(np.sqrt(2*np.pi*var1)))*np.exp(-np.power(distances,2)/(2*var1)) 
+        # returm the 'weight' of this transformation
+        wiegth1 = np.sum((prob1)/prob1.shape[0])+0.000001 #np.sum(prob) 
+        
+        distances, indices = oMap_nbrs.kneighbors(tMap_anti)
+        # find the propability 
+        prob2 = (1/(np.sqrt(2*np.pi*var2)))*np.exp(-np.power(distances,2)/(2*var2))*(-1) + 1
+        # returm the 'weight' of this transformation
+        wiegth2 = np.sum((prob2)/prob2.shape[0])+0.000001 #np.sum(prob) 
+        
+        #distances, indices = oMap_anti_nbrs.kneighbors(tMap_anti)
+        # find the propability 
+        #prob = (1/(np.sqrt(2*np.pi*var)))*np.exp(-np.power(distances,2)/(2*var)) 
+        # returm the 'weight' of this transformation
+        #wiegth_anti = np.sum((prob)/prob.shape[0])+0.000001 #np.sum(prob) 
+        self.score += (wiegth1**alpha)*(wiegth2**(1-alpha))* factor # sum up score
+
+     
     def add_noise(self):
         
-        self.x += 0.5 * np.random.randn()
-        self.y += 0.5 * np.random.randn()
-        self.theta += 0.5  * np.random.randn()
+        self.x += 0.07 * np.random.randn()
+        self.y += 0.07 * np.random.randn()
+        self.theta += 0.5  * np.random.randn() + 90.0*np.random.choice(4,p = [0.55,0.15,0.15,0.15] )
         self.score=0
 
 class maps:

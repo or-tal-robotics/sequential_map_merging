@@ -1,0 +1,4 @@
+# maps origins
+map1: 
+    robot1: [-14, 0, 0]
+    robot2: [-2.8, 5, -1.57]

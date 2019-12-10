@@ -24,7 +24,7 @@
   <param name="dev" value="/dev/input/js1" />
   <remap from="/joy" to="/ABot/joy"/>
   </node>
-  <node name="joystick_controler_ABot" pkg="SLAM" type="joystick_controler_new.py" output="screen">
+  <node name="joystick_controler_ABot" pkg="DMM" type="joystick_controler_new.py" output="screen">
   <remap from="/cmd_vel" to="/ABot1/cmd_vel"/>
   <remap from="/joy" to="/ABot1/joy"/>
   </node>
@@ -46,7 +46,7 @@
 <param name="advertise_map_service" value="true"/>
 
 <!-- Map size / start point -->
-<param name="map_resolution" value="0.20"/>
+<param name="map_resolution" value="0.2"/>
 <param name="map_size" value="512"/>
 <param name="map_start_x" value="0.5"/>
 <param name="map_start_y" value="0.5" />
@@ -55,8 +55,9 @@
 <!-- Map update parameters -->
 <param name="update_factor_free" value="0.4"/>
 <param name="update_factor_occupied" value="0.9" />
-<param name="map_update_distance_thresh" value="0.4"/>
-<param name="map_update_angle_thresh" value="0.12" />
+<param name="map_update_distance_thresh" value="0.1"/>
+<param name="map_update_angle_thresh" value="0.1" />
+<param name="laser_max_dist" value="10.0" />
 
 <!-- Debug parameters -->
 <!--
@@ -80,14 +81,14 @@
   </node>
 <param name="robot_description2" command="$(find xacro)/xacro '$(find DMM)/urdf/ABot.urdf.xacro'" />
   <!-- push ABot_description to factory and spawn robot in gazebo -->
-  <node name="spawn_ABot" pkg="gazebo_ros" type="spawn_model" args=" -x 14 -y -3 -Y 2.86 -urdf -model ABot2 -param robot_description2" respawn="false" output="screen" />
+  <node name="spawn_ABot" pkg="gazebo_ros" type="spawn_model" args=" -x -2.8 -y 5 -Y -1.57 -urdf -model ABot2 -param robot_description2" respawn="false" output="screen" />
 
 
   <node name="joy_node_ABot" pkg="joy" type="joy_node" output="screen">
   <param name="dev" value="/dev/input/js0" />
   <remap from="/joy" to="/ABot2/joy"/>
   </node>
-  <node name="joystick_controler_ABot" pkg="SLAM" type="joystick_controler_new.py" output="screen">
+  <node name="joystick_controler_ABot" pkg="DMM" type="joystick_controler_new.py" output="screen">
   <remap from="/cmd_vel" to="/ABot2/cmd_vel"/>
   <remap from="/joy" to="/ABot2/joy"/>
   </node>
@@ -109,7 +110,7 @@
 <param name="advertise_map_service" value="true"/>
 
 <!-- Map size / start point -->
-<param name="map_resolution" value="0.20"/>
+<param name="map_resolution" value="0.2"/>
 <param name="map_size" value="512"/>
 <param name="map_start_x" value="0.5"/>
 <param name="map_start_y" value="0.5" />
@@ -118,8 +119,9 @@
 <!-- Map update parameters -->
 <param name="update_factor_free" value="0.4"/>
 <param name="update_factor_occupied" value="0.9" />
-<param name="map_update_distance_thresh" value="0.4"/>
-<param name="map_update_angle_thresh" value="0.12" />
+<param name="map_update_distance_thresh" value="0.1"/>
+<param name="map_update_angle_thresh" value="0.1" />
+<param name="laser_max_dist" value="10.0" />
 
 <!-- Debug parameters -->
 <!--
