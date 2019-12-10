@@ -16,6 +16,10 @@ from geometry_msgs.msg import Transform # for transpose of map
 import operator
 from scipy.optimize import differential_evolution
 import copy
+import pandas as pd
+import os
+
+
 
 class tPF():
     
@@ -25,15 +29,23 @@ class tPF():
         rospy.init_node('listener', anonymous=True)
        
         # creat first particales 
-        self.initialize_PF()
+       # self.initialize_PF()
 
         # convert maps to landmarks arrays:
         self.oMap = maps("LM1") 
         self.tMap = maps("LM2")
-        self.indicator = 0
-        self.realT = np.array([2, 2, 90]) # real transformation
-        self.K = 0 # time step for norm2
-        counter = 0
+        self.best_score = 0
+        self.realT = np.array([-1.5 , -2.5 , 90]) # real transformation
+
+
+        self.itr = 0
+        self.prob = 0.1
+
+        self.K = 1 # time step for norm2
+
+        self.Nde = []
+        self.NtPF = []
+        resample_counter = 0
 
         while not rospy.is_shutdown():
 
@@ -47,20 +59,72 @@ class tPF():
                 # DE algorithm for finding best match
                 result = differential_evolution(self.func_de, bounds = [(-10,10),(-10,10),(0,360)] ,maxiter= 200 ,popsize=6,tol=0.0001)
                 self.T_de = [result.x[0] , result.x[1] , min(result.x[2], 360 - result.x[2])] 
+                print self.T_de
 
-                self.likelihood_PF()
+                #self.likelihood_PF()
                 
-                counter +=1
-                if counter >= 10 :
-                    self.resampling()
-                    counter = 0
+                resample_counter +=1
+                print resample_counter
+
+                #if resample_counter >= 9 :
+                 #   self.resampling() # start re-sampling step 
+                  #  resample_counter = 0
 
                 self.norm2() # finding norm2
 
-                self.de_map = self.tMap.rotate2(result.x)
-                #self.plotmaps() # plot landmarks of maps.
+                if self.K == 80 :
 
-    def initialize_PF( self , angles = np.linspace(0 , 360 , 30) , xRange = np.linspace(-10 , 10 , 10) , yRange = np.linspace(-10 , 10 ,10) ):
+                    self.save_data_DE()
+
+                self.K += 1
+
+                self.de_map = self.tMap.rotate2(result.x)
+                self.plotmaps() # plot landmarks of maps.
+
+
+    def save_data_DE(self):
+
+        if os.path.isfile('~/DE.csv'):
+            with open('~/DE.csv', 'a') as f:
+                self.save_stat_DE('~/DE.csv', ex = True, f=f)
+        else:
+            self.save_stat_DE('~/DE.csv', ex = False)
+
+        print 'save data'
+
+    def save_stat_DE(self,file_path, ex, f = None):
+
+        data = {'De': self.Nde }
+                
+        df = pd.DataFrame(data, columns= ['De'])
+
+        if ex==False:
+            df.to_csv(file_path, sep='\t')
+        else:
+            df.to_csv(f, sep='\t', header=False)
+
+    def save_data_tPF(self):
+
+        if os.path.isfile('~/tPF.csv'):
+            with open('~/tPF.csv', 'a') as f:
+                self.save_stat_tPF('~/tPF.csv', ex = True, f=f)
+        else:
+            self.save_stat_tPF('~/tPF.csv', ex = False)
+
+        print 'data saved'
+
+    def save_stat_tPF(self,file_path, ex, f = None):
+
+        data = {'tPF': self.NtPF}
+                
+        df = pd.DataFrame(data, columns= ['tPF'])
+
+        if ex==False:
+            df.to_csv(file_path, sep='\t')
+        else:
+            df.to_csv(f, sep='\t', header=False)
+
+    def initialize_PF( self , angles = np.linspace(0 , 360 , 45) , xRange = np.linspace(-5 , 5 , 10) , yRange = np.linspace(-5 , 5 ,10) ):
        
         # make a list of class rot(s)
         self.Rot = []
@@ -75,26 +139,30 @@ class tPF():
     def likelihood_PF(self):
 
         self.scores = []
+        factor = np.power(1 - self.prob , 9 - self.itr )
+        self.itr +=1 
 
         for i in self.Rot:    
             # 'tempMap' ->  map after transformation the secondery map [T(tMap)]:
             tempMap = self.tMap.rotate(i.x ,i.y , i.theta)
-            i.weight(self.oMap.map , tempMap ,self.nbrs)
+            i.weight(self.oMap.map , tempMap ,self.nbrs , factor)
             self.scores.append(i.score) # add weights to array 
 
         maxt = max( self.Rot , key = operator.attrgetter('score') ) # finds partical with maximum score
 
-        if maxt.score > self.indicator:          
+        if maxt.score > self.best_score:          
         # check if there is a new partical thats better then previuos partical
             self.maxt = maxt
-            print 'max W(tPF):' ,self.maxt.score ,self.maxt.theta
+          
             self.maxMap = self.tMap.rotate(self.maxt.x ,self.maxt.y , self.maxt.theta )
-            self.indicator =  maxt.score
+            self.best_score =  maxt.score
 
             self.T_tPF = [self.maxt.x ,self.maxt.y , min(self.maxt.theta , 360 -self.maxt.theta)]
+            print 'max W(tPF):' ,self.T_tPF
 
     def resampling(self):
-        
+
+        self.itr = 0
         W = self.scores/np.sum(self.scores) # Normalized scores for resampling 
         Np = len(self.Rot)
         index = np.random.choice(a = Np ,size = Np ,p = W ) # resample by score
@@ -106,7 +174,7 @@ class tPF():
             Rot_arr.append(tmp_rot) # resample by weights
 
         self.Rot = Rot_arr
-        self.indicator = 0
+        self.best_score = 0
         print 'resample done'
  
     def func_de(self , T):
@@ -125,26 +193,25 @@ class tPF():
 
     def norm2(self):
         
+        # find norm 2 of transformation 
         normDE = np.linalg.norm(self.T_de - self.realT) 
-        normtPF = np.linalg.norm(self.T_tPF - self.realT) 
-       # print 'norm2 of de:' , normDE
-       # print 'norm2 of tPF:'  , normtPF
-
-        self.plot_norms(normDE , normtPF)
-
+       # normtPF = np.linalg.norm(self.T_tPF - self.realT) 
+        self.Nde.append(normDE)
+       # self.NtPF.append(normtPF)
+        #self.plot_norms(normDE , normtPF)
+        
     def plot_norms(self , normDE , normtPF ):
 
         plt.axis([0 , 60, 0,  180])
-        plt.scatter(self.K ,normDE , color = 'b') # plot tPF map
+       # plt.scatter(self.K ,normDE , color = 'b') # plot tPF map
         plt.scatter(self.K ,normtPF ,color = 'r') # plot origin map
         plt.pause(0.05)
-        self.K += 1
-
+ 
     def plotmaps(self):
 
         plt.axis([-60, 60, -60, 60])
         plt.axis([-30, 30, -30, 30])
-        plt.scatter(self.maxMap[: , 0] ,self.maxMap[:,1] , color = 'b') # plot tPF map
+        #plt.scatter(self.maxMap[: , 0] ,self.maxMap[:,1] , color = 'b') # plot tPF map
         plt.scatter(self.oMap.map[: , 0] ,self.oMap.map[:,1] ,color = 'r') # plot origin map
         plt.scatter(self.de_map[: , 0] ,self.de_map[:,1] , color = 'g') # plot DE map
         plt.pause(0.05)
@@ -161,7 +228,9 @@ class rot(object):
          self.y = yShift
          self.score = 0 
 
-    def weight(self , oMap , tMap , nbrs):
+
+
+    def weight(self , oMap , tMap , nbrs , factor ):
         
         var = 0.16
         # fit data of map 2 to map 1  
@@ -169,17 +238,16 @@ class rot(object):
         # find the propability 
         prob = (1/(np.sqrt(2*np.pi*var)))*np.exp(-np.power(distances,2)/(2*var)) 
         # returm the 'weight' of this transformation
-        wiegth = np.sum((prob)/prob.shape[0])+0.000001 
-
-        self.score += wiegth # sum up score
+        wiegth = np.sum((prob)/prob.shape[0])+0.000001 #np.sum(prob) 
+        
+        self.score += wiegth * factor # sum up score
     
     def add_noise(self):
         
         factor = np.random.randn()
-        self.x += 0.001 * factor
-        self.y += 0.001 * factor
-        self.theta += 10 * factor
-
+        self.x += 0.01 * factor
+        self.y += 0.01 * factor
+        self.theta += 0.5  * factor
         self.score=0
 
 class maps:
