@@ -17,7 +17,7 @@
   </node>
 <param name="robot_description1" command="$(find xacro)/xacro '$(find DMM)/urdf/ABot.urdf.xacro'" />
   <!-- push ABot_description to factory and spawn robot in gazebo -->
-  <node name="spawn_ABot" pkg="gazebo_ros" type="spawn_model" args=" -x -14 -y 0 -urdf -model ABot1 -param robot_description1" respawn="false" output="screen" />
+  <node name="spawn_ABot" pkg="gazebo_ros" type="spawn_model" args=" -x -11 -y 2.5 -urdf -model ABot1 -param robot_description1" respawn="false" output="screen" />
 
 
   <node name="joy_node_ABot" pkg="joy" type="joy_node" output="screen">
@@ -81,7 +81,7 @@
   </node>
 <param name="robot_description2" command="$(find xacro)/xacro '$(find DMM)/urdf/ABot.urdf.xacro'" />
   <!-- push ABot_description to factory and spawn robot in gazebo -->
-  <node name="spawn_ABot" pkg="gazebo_ros" type="spawn_model" args=" -x -2.8 -y 5 -Y -1.57 -urdf -model ABot2 -param robot_description2" respawn="false" output="screen" />
+  <node name="spawn_ABot" pkg="gazebo_ros" type="spawn_model" args=" -x 15 -y 2.5 -Y -3.14 -urdf -model ABot2 -param robot_description2" respawn="false" output="screen" />
 
 
   <node name="joy_node_ABot" pkg="joy" type="joy_node" output="screen">

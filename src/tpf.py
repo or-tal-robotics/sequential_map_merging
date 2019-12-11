@@ -152,7 +152,7 @@ class tPF():
         tMap_anti = self.anti_tMap.rotate(x0.x ,x0.y , x0.theta)
         x0.weight2(self.oMap.map , tempMap, self.anti_oMap.map , tMap_anti , self.nbrs , 0.9,  1 )
         self.Rot.append(x0)
-        for i in range(30000):
+        for i in range(10000):
             xt = rot(angles[np.random.randint(len(angles))] +0.5  * np.random.randn(),
                 xRange[np.random.randint(len(xRange))] +0.5  * np.random.randn(),
                 yRange[np.random.randint(len(yRange))]+0.5  * np.random.randn())
@@ -260,7 +260,7 @@ class tPF():
 
         #plt.axis([-60, 60, -60, 60])
         plt.subplot(2,1,1)
-        plt.axis([-30+self.oMap.cm[0], 30+self.oMap.cm[0], -30+self.oMap.cm[1], 30+self.oMap.cm[1]])
+        plt.axis([-50+self.oMap.cm[0], 50+self.oMap.cm[0], -50+self.oMap.cm[1], 50+self.oMap.cm[1]])
         #plt.axis([-30, 30, -30, 30])
         plt.scatter(self.maxMap[: , 0] ,self.maxMap[:,1] , color = 'b') # plot tPF map
         plt.scatter(self.oMap.map[: , 0] ,self.oMap.map[:,1] ,color = 'r') # plot origin map
@@ -276,7 +276,6 @@ class rot(object):
     # define 'rot' to be the class of the rotation for resamplimg filter
 
     def __init__(self , theta , xShift , yShift):
-        
          self.theta = theta
          self.x = xShift
          self.y = yShift
@@ -297,7 +296,7 @@ class rot(object):
         self.score += wiegth * factor # sum up score
 
     def weight2(self , oMap , tMap, oMap_anti , tMap_anti , oMap_nbrs , alpha,  factor ):
-        var1 = 0.14
+        var1 = 0.1
         var2 = 0.016
         tMap_distances, _ = oMap_nbrs.kneighbors(tMap)
         tMap_anti_distances, _ = oMap_nbrs.kneighbors(tMap_anti)
@@ -309,7 +308,6 @@ class rot(object):
 
      
     def add_noise(self):
-        
         self.x += 0.01 * np.random.randn()
         self.y += 0.01 * np.random.randn()
         self.theta += 0.5  * np.random.randn() 
@@ -328,7 +326,6 @@ class maps:
         rospy.Subscriber( topic_name , numpy_msg(Floats) , self.callback)
                
     def callback(self ,data):
-  
         # reshape array from 1D to 2D
         landmarks = np.reshape(data.data, (-1, 2))
         # finding C.M for the first iterration

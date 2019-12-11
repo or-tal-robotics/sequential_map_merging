@@ -38,7 +38,7 @@ class maps:
         self.map1_OG = rospy.Subscriber("/ABot1/map", OccupancyGrid , self.callbackM1 )
         self.map2_OG = rospy.Subscriber("/ABot2/map", OccupancyGrid , self.callbackM2 )
         
-        r = rospy.Rate(1) # 0.1 hz
+        r = rospy.Rate(2) # 0.1 hz
      
         while not rospy.is_shutdown():
 
