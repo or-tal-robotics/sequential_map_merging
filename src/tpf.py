@@ -18,9 +18,12 @@ from scipy.optimize import differential_evolution
 import copy
 import pandas as pd
 import os
+from joblib import Parallel, delayed
+import multiprocessing
 
-
-
+ground_trouth_origin = np.array([-14.0, 0.0, 0.0])
+ground_trouth_target = np.array([-2.8, 5.0, -1.57])
+num_cores = multiprocessing.cpu_count()
 class tPF():
     
     def __init__(self):
@@ -29,7 +32,7 @@ class tPF():
         rospy.init_node('listener', anonymous=True)
        
         # creat first particales 
-        self.initialize_PF()
+       
 
         # convert maps to landmarks arrays:
         self.oMap = maps("LM1")
@@ -48,7 +51,7 @@ class tPF():
         self.Nde = []
         self.NtPF = []
         self.resample_counter = 0
-
+        self.init = True
         while not rospy.is_shutdown():
 
         
@@ -57,7 +60,9 @@ class tPF():
                 #init nbrs for KNN
                 self.nbrs = NearestNeighbors(n_neighbors= 1, algorithm='ball_tree').fit(self.oMap.map)
                 #self.nbrs_anti = NearestNeighbors(n_neighbors= 1, algorithm='ball_tree').fit(self.anti_oMap.map)
-
+                if self.init == True:
+                    self.initialize_PF()
+                    self.init = False
                 # DE algorithm for finding best match
                 #result = differential_evolution(self.func_de, bounds = [(-10,10),(-10,10),(0,360)] ,maxiter= 200 ,popsize=6,tol=0.0001)
                 #self.T_de = [result.x[0] , result.x[1] , min(result.x[2], 360 - result.x[2])] 
@@ -68,7 +73,7 @@ class tPF():
                 self.resample_counter +=1
                 #print resample_counter
 
-                if self.N_eff < 0.0001 and self.resample_counter>10:
+                if self.N_eff < 0.001 and self.resample_counter>10:
                     self.resampling() # start re-sampling step 
                     self.resample_counter = 0
 
@@ -82,7 +87,14 @@ class tPF():
 
                 #self.de_map = self.tMap.rotate2(result.x)
                 self.plotmaps() # plot landmarks of maps.
-
+                self.oMap.started = False
+                self.tMap.started = False
+                self.anti_oMap.started = False
+                self.anti_tMap.started = False
+                gtt = (ground_trouth_origin[0:2] ) - (ground_trouth_target[0:2] )
+                #print "gtt1=:"+str((ground_trouth_origin[0:2] - self.oMap.cm.T))
+                #print "gtt2=:"+str((ground_trouth_target[0:2] - self.tMap.cm.T))
+                print "transition err=:"+str(np.linalg.norm(gtt - self.T_tPF[0:2]))
 
 
 
@@ -128,16 +140,34 @@ class tPF():
         else:
             df.to_csv(f, sep='\t', header=False)
 
-    def initialize_PF( self , angles = np.linspace(0 , 360 , 10) , xRange = np.linspace(-10 , 10 , 10) , yRange = np.linspace(-10 , 10 ,10) ):
+    def initialize_PF( self , angles = np.linspace(0 , 360 ,30 ) , xRange = np.linspace(-15 , 15 , 30) , yRange = np.linspace(-15 , 15 ,30) ):
        
         # make a list of class rot(s)
         self.Rot = []
-
-        for i in range(len(angles)):
-            for j in range(len(xRange)):
-                for k in range(len(yRange)):
-                    self.Rot.append(rot(angles[i] , xRange[j] , yRange[k]))
         
+        x0 = rot(angles[np.random.randint(len(angles))] ,
+            xRange[np.random.randint(len(xRange))] ,
+            yRange[np.random.randint(len(yRange))])
+        tempMap = self.tMap.rotate(x0.x ,x0.y , x0.theta)
+        tMap_anti = self.anti_tMap.rotate(x0.x ,x0.y , x0.theta)
+        x0.weight2(self.oMap.map , tempMap, self.anti_oMap.map , tMap_anti , self.nbrs , 0.9,  1 )
+        self.Rot.append(x0)
+        for i in range(30000):
+            xt = rot(angles[np.random.randint(len(angles))] +0.5  * np.random.randn(),
+                xRange[np.random.randint(len(xRange))] +0.5  * np.random.randn(),
+                yRange[np.random.randint(len(yRange))]+0.5  * np.random.randn())
+            tempMap = self.tMap.rotate(xt.x ,xt.y , xt.theta)
+            tMap_anti = self.anti_tMap.rotate(xt.x ,xt.y , xt.theta)
+            xt.weight2(self.oMap.map , tempMap, self.anti_oMap.map , tMap_anti , self.nbrs , 0.9,  1 )
+            if xt.score>x0.score:
+                self.Rot.append(xt)
+                x0 = xt
+            elif np.random.binomial(1, xt.score/x0.score) == 1:
+                self.Rot.append(xt)
+                x0 = xt
+        
+        self.Rot = self.Rot[-1000:]
+        self.pf_debug = np.zeros((len(self.Rot),2))
         print ("initialaize PF whith") , len(self.Rot) ,(" samples completed")
 
     def likelihood_PF(self):
@@ -150,7 +180,7 @@ class tPF():
             # 'tempMap' ->  map after transformation the secondery map [T(tMap)]:
             tempMap = self.tMap.rotate(i.x ,i.y , i.theta)
             tMap_anti = self.anti_tMap.rotate(i.x ,i.y , i.theta)
-            i.weight2(self.oMap.map , tempMap, self.anti_oMap.map , tMap_anti , self.nbrs , 0.5,  factor )
+            i.weight2(self.oMap.map , tempMap, self.anti_oMap.map , tMap_anti , self.nbrs , 0.9,  factor )
             #i.weight(self.oMap.map , tempMap ,self.nbrs , factor)
             self.scores.append(i.score) # add weights to array 
         w = np.array(self.scores)
@@ -187,9 +217,12 @@ class tPF():
     def predict(self):        
 
         for i in range(len(self.Rot)):
-            self.Rot[i].theta += 0.1  * np.random.randn()
-            self.Rot[i].x += 0.05  * np.random.randn()
-            self.Rot[i].y += 0.05  * np.random.randn()
+            self.Rot[i].theta += 0.5  * np.random.randn() + 90.0*np.random.choice(4,p = [0.6,0.1,0.2,0.1] )
+            self.Rot[i].x += 0.1  * np.random.randn()
+            self.Rot[i].y += 0.1  * np.random.randn()
+            self.pf_debug[i,0] = self.Rot[i].x
+            self.pf_debug[i,1] = self.Rot[i].y
+
  
     def func_de(self , T):
 
@@ -220,13 +253,20 @@ class tPF():
        # plt.scatter(self.K ,normDE , color = 'b') # plot tPF map
         plt.scatter(self.K ,normtPF ,color = 'r') # plot origin map
         plt.pause(0.05)
+
+        
  
     def plotmaps(self):
 
-        plt.axis([-60, 60, -60, 60])
-        plt.axis([-30, 30, -30, 30])
+        #plt.axis([-60, 60, -60, 60])
+        plt.subplot(2,1,1)
+        plt.axis([-30+self.oMap.cm[0], 30+self.oMap.cm[0], -30+self.oMap.cm[1], 30+self.oMap.cm[1]])
+        #plt.axis([-30, 30, -30, 30])
         plt.scatter(self.maxMap[: , 0] ,self.maxMap[:,1] , color = 'b') # plot tPF map
         plt.scatter(self.oMap.map[: , 0] ,self.oMap.map[:,1] ,color = 'r') # plot origin map
+        plt.subplot(2,1,2)
+        plt.scatter(self.pf_debug[:,0], self.pf_debug[:,1])
+
         #plt.scatter(self.de_map[: , 0] ,self.de_map[:,1] , color = 'g') # plot DE map
         plt.pause(0.05)
         plt.clf()
@@ -257,34 +297,22 @@ class rot(object):
         self.score += wiegth * factor # sum up score
 
     def weight2(self , oMap , tMap, oMap_anti , tMap_anti , oMap_nbrs , alpha,  factor ):
-        var1 = 0.16
-        var2 = 0.26
-        # fit data of map 2 to map 1  
-        distances, indices = oMap_nbrs.kneighbors(tMap)
-        # find the propability 
-        prob1 = (1/(np.sqrt(2*np.pi*var1)))*np.exp(-np.power(distances,2)/(2*var1)) 
-        # returm the 'weight' of this transformation
-        wiegth1 = np.sum((prob1)/prob1.shape[0])+0.000001 #np.sum(prob) 
-        
-        distances, indices = oMap_nbrs.kneighbors(tMap_anti)
-        # find the propability 
-        prob2 = (1/(np.sqrt(2*np.pi*var2)))*np.exp(-np.power(distances,2)/(2*var2))*(-1) + 1
-        # returm the 'weight' of this transformation
-        wiegth2 = np.sum((prob2)/prob2.shape[0])+0.000001 #np.sum(prob) 
-        
-        #distances, indices = oMap_anti_nbrs.kneighbors(tMap_anti)
-        # find the propability 
-        #prob = (1/(np.sqrt(2*np.pi*var)))*np.exp(-np.power(distances,2)/(2*var)) 
-        # returm the 'weight' of this transformation
-        #wiegth_anti = np.sum((prob)/prob.shape[0])+0.000001 #np.sum(prob) 
-        self.score += (wiegth1**alpha)*(wiegth2**(1-alpha))* factor # sum up score
+        var1 = 0.14
+        var2 = 0.016
+        tMap_distances, _ = oMap_nbrs.kneighbors(tMap)
+        tMap_anti_distances, _ = oMap_nbrs.kneighbors(tMap_anti)
+        tMap_prob = (1/(np.sqrt(2*np.pi*var1)))*np.exp(-np.power(tMap_distances,2)/(2*var1)) 
+        tMap_anti_prob = (1/(np.sqrt(2*np.pi*var2)))*np.exp(-np.power(tMap_anti_distances,2)/(2*var2))
+        tMap_w = np.sum((tMap_prob)/tMap_prob.shape[0])+0.000001
+        tMap_anti_w = 1/(np.sum((tMap_anti_prob)/tMap_anti_prob.shape[0])+0.000001)       
+        self.score += (tMap_w**alpha)*(tMap_anti_w**(1-alpha))* factor 
 
      
     def add_noise(self):
         
-        self.x += 0.07 * np.random.randn()
-        self.y += 0.07 * np.random.randn()
-        self.theta += 0.5  * np.random.randn() + 90.0*np.random.choice(4,p = [0.55,0.15,0.15,0.15] )
+        self.x += 0.01 * np.random.randn()
+        self.y += 0.01 * np.random.randn()
+        self.theta += 0.5  * np.random.randn() 
         self.score=0
 
 class maps:
@@ -311,7 +339,7 @@ class maps:
             print ('set origin of: '), (self.name)
             self.check = False
             
-        self.map = np.array(landmarks , dtype= "int32") - self.cm.T
+        self.map = np.array(landmarks , dtype= "int32")# - self.cm.T
         #print self.map
         self.started = True
 

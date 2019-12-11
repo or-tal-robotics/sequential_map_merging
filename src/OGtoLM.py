@@ -50,7 +50,7 @@ class maps:
                 self.pub1.publish(a)
                 self.pub1_anti.publish(anti_a)
                 #print "landmarks array of map 1 is passed"
-           
+                self.started1 = False
             if (self.started2):
 
                 a = self.map2_LM.ravel()
@@ -59,7 +59,7 @@ class maps:
                 self.pub2.publish(a)
                 self.pub2_anti.publish(anti_a)
                 #print "landmarks array of map 2 is passed"
-
+                self.started2 = False
             r.sleep()        
 
     def callbackM1(self ,msg):
@@ -71,7 +71,7 @@ class maps:
         
         #convert to landmarks array
         scale = msg.info.resolution
-        CenterShift = msg.info.width/20   
+        #CenterShift = msg.info.width/20   
         landMarksArray = (np.argwhere( Re == 100 ) * scale) # - np.array([CenterShift ,CenterShift]) 
         anti_landMarksArray = (np.argwhere( Re == 0 ) * scale)
        # print landMarksArray
