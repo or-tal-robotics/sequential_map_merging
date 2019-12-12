@@ -22,14 +22,9 @@ from joblib import Parallel, delayed
 import multiprocessing
 from sklearn.cluster import KMeans
 from sklearn.mixture import BayesianGaussianMixture
-# ground_trouth_origin = np.array([-14.0, 0, 0.0]) #map1
-# ground_trouth_target = np.array([-2.8, 5, -1.57]) #map1
-
-ground_trouth_origin = np.array([-11,2.5, 0]) #map3
-ground_trouth_target = np.array([15, 2.5, -3.14]) #map3
-
+ground_trouth_origin = np.array([-11.0, 2.5, 0.0])
+ground_trouth_target = np.array([15, 2.5, -3.14])
 num_cores = multiprocessing.cpu_count()
-import rospkg
 class tPF():
     
     def __init__(self):
@@ -72,7 +67,7 @@ class tPF():
                     self.initialize_PF()
                     self.init = False
                 # DE algorithm for finding best match
-                result = differential_evolution(self.func_de, bounds = [(-15,15),(-15,15),(0,360)] ,maxiter= 10 ,popsize=3,tol=0.0001)
+                result = differential_evolution(self.func_de, bounds = [(-15,15),(-15,15),(0,360)] ,maxiter= 200 ,popsize=6,tol=0.0001)
                 self.T_de = [result.x[0] , result.x[1] , min(result.x[2], 360 - result.x[2])] 
                 #print self.T_de
                 self.predict()
@@ -81,7 +76,7 @@ class tPF():
                 self.resample_counter +=1
                 #print resample_counter
                 
-                if self.N_eff < 0.001 and self.resample_counter>8:
+                if self.N_eff < 0.001 and self.resample_counter>5:
                     self.resampling() # start re-sampling step 
                     self.resample_counter = 0
                     self.gibbs_resampling_kmeans(iter_n=1)
@@ -154,7 +149,7 @@ class tPF():
         else:
             df.to_csv(f, sep='\t', header=False)
 
-    def initialize_PF( self , angles = np.linspace(0 , 360 ,30 ) , xRange = np.linspace(-15 , 15 , 30) , yRange = np.linspace(-15 , 15 ,30) ,fire_up = 3000, Np = 2000):
+    def initialize_PF( self , angles = np.linspace(0 , 360 ,30 ) , xRange = np.linspace(-15 , 15 , 30) , yRange = np.linspace(-15 , 15 ,30) ,fire_up = 3000, Np = 200):
        
         # make a list of class rot(s)
         self.Rot = []
@@ -186,7 +181,7 @@ class tPF():
                 Rot.append(x0)
                 i+=1
         self.Rot = Rot[-Np:]
-        self.pf_debug = np.zeros((len(self.Rot),4))
+        self.pf_debug = np.zeros((len(self.Rot),3))
         print ("initialaize PF whith") , len(self.Rot) ,(" samples completed")
 
     def likelihood_PF(self):
@@ -308,13 +303,13 @@ class tPF():
     def predict(self):        
 
         for i in range(len(self.Rot)):
-            self.Rot[i].theta = (self.Rot[i].theta + 0.5  * np.random.randn()) % 360
+            self.Rot[i].theta += 0.5  * np.random.randn()
             self.Rot[i].x += 0.2  * np.random.randn()
             self.Rot[i].y += 0.2  * np.random.randn()
             self.pf_debug[i,0] = self.Rot[i].x
             self.pf_debug[i,1] = self.Rot[i].y
             self.pf_debug[i,2] = self.Rot[i].theta
-            self.pf_debug[i,3] = self.Rot[i].score
+
  
     def func_de(self , T):
 
@@ -351,29 +346,24 @@ class tPF():
     def plotmaps(self):
 
         #plt.axis([-60, 60, -60, 60])
-        plt.subplot(2,2,1)
+        plt.subplot(1,3,1)
         #plt.axis([-50+self.oMap.cm[0], 50+self.oMap.cm[0], -50+self.oMap.cm[1], 50+self.oMap.cm[1]])
         plt.axis([-30, 30, -30, 30])
         plt.scatter(self.maxMap[: , 0] ,self.maxMap[:,1] , color = 'b') # plot tPF map
         plt.scatter(self.oMap.map[: , 0] ,self.oMap.map[:,1] ,color = 'r') # plot origin map
-        plt.subplot(2,2,2)
+        plt.subplot(1,3,2)
         plt.scatter(self.pf_debug[:,0], self.pf_debug[:,1])
-        plt.subplot(2,2,3)
-        plt.scatter(self.pf_debug[:,2], self.pf_debug[:,3])
 
 
 
         c ,s = np.cos(self.T_tPF[2]) , np.sin(self.T_tPF[2])
         R = np.array([[c,-s], [s, c]]) #Rotation matrix
-
-        ct ,st = np.cos(ground_trouth_target[2]) , np.sin(ground_trouth_target[2])
-        Rt = np.array([[ct,-st], [st, ct]]) #Rotation matrix
-        gtt1 =  np.matmul( ground_trouth_origin[0:2] - self.oMap.cm.T, R ) +  self.T_tPF[0:2]   -  np.matmul(ground_trouth_target[0:2] - self.tMap.cm.T, Rt)# matrix multiplation
-        gtt_de = np.matmul( ground_trouth_origin[0:2] - self.oMap.cm.T, R ) +  self.T_de[0:2]  -  np.matmul(ground_trouth_target[0:2] - self.tMap.cm.T, Rt)# matrix multiplation
+        gtt1 = np.matmul( ground_trouth_origin[0:2] - self.oMap.cm.T, R ) +  self.T_tPF[0:2] + self.tMap.cm.T# matrix multiplation
+        gtt_de = np.matmul( ground_trouth_origin[0:2] - self.oMap.cm.T, R ) +  self.T_de[0:2] + self.tMap.cm.T# matrix multiplation
         
-        self.err_pf.append(np.linalg.norm(gtt1 - ground_trouth_target[0:2]))
-        self.err_de.append(np.linalg.norm(gtt_de - ground_trouth_target[0:2]))
-        plt.subplot(2,2,4)
+        self.err_pf.append(np.linalg.norm(gtt1 + ground_trouth_target[0:2]))
+        self.err_de.append(np.linalg.norm(gtt_de + ground_trouth_target[0:2]))
+        plt.subplot(1,3,3)
         plt.plot(self.err_pf, color = 'b')
         plt.plot(self.err_de, color = 'r')
 
@@ -420,7 +410,7 @@ class rot(object):
     def add_noise(self):
         self.x += 0.01 * np.random.randn()
         self.y += 0.01 * np.random.randn()
-        self.theta = (self.theta+0.2  * np.random.randn() + 90.0*np.random.choice(4,p = [0.8,0.05,0.1,0.05] ))%360
+        self.theta += 0.5  * np.random.randn() + 90.0*np.random.choice(4,p = [0.8,0.05,0.1,0.05] )
         self.score=0
 
 class maps:
