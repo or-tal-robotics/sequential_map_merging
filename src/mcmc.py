@@ -25,8 +25,8 @@ from sklearn.mixture import BayesianGaussianMixture
 # ground_trouth_origin = np.array([-14.0, 0, 0.0]) #map1
 # ground_trouth_target = np.array([-2.8, 5, -1.57]) #map1
 
-ground_trouth_origin = np.array([-11,2.5, 0]) #map3
-ground_trouth_target = np.array([15, 2.5, -3.14]) #map3
+ground_trouth_origin = np.array([-12,-5.0, 0]) #map3
+ground_trouth_target = np.array([4.0, -8.0, -2.75]) #map3
 
 num_cores = multiprocessing.cpu_count()
 import rospkg
@@ -74,6 +74,9 @@ class tPF():
                 # DE algorithm for finding best match
                 result = differential_evolution(self.func_de, bounds = [(-15,15),(-15,15),(0,360)] ,maxiter= 10 ,popsize=3,tol=0.0001)
                 self.T_de = [result.x[0] , result.x[1] , min(result.x[2], 360 - result.x[2])] 
+                self.DEmap = self.tMap.rotate2(result.x)
+
+
                 #print self.T_de
                 self.predict()
                 self.likelihood_PF()
@@ -84,7 +87,7 @@ class tPF():
                 if self.N_eff < 0.001 and self.resample_counter>8:
                     self.resampling() # start re-sampling step 
                     self.resample_counter = 0
-                    self.gibbs_resampling_kmeans(iter_n=1)
+                    #self.gibbs_resampling_kmeans(iter_n=1)
 
                 #self.norm2() # finding norm2
 
@@ -154,7 +157,7 @@ class tPF():
         else:
             df.to_csv(f, sep='\t', header=False)
 
-    def initialize_PF( self , angles = np.linspace(0 , 360 ,30 ) , xRange = np.linspace(-15 , 15 , 30) , yRange = np.linspace(-15 , 15 ,30) ,fire_up = 3000, Np = 2000):
+    def initialize_PF( self , angles = np.linspace(0 , 360 ,30 ) , xRange = np.linspace(-15 , 15 , 30) , yRange = np.linspace(-15 , 15 ,30) ,fire_up = 3000, Np = 500):
        
         # make a list of class rot(s)
         self.Rot = []
@@ -237,13 +240,13 @@ class tPF():
         self.itr = 0
         Np = len(self.Rot)
         for iter in range(iter_n):
-            kmeans = KMeans(n_clusters=20, init='k-means++', max_iter=300, n_init=10, random_state=0)
+            kmeans = KMeans(n_clusters=5, init='k-means++', max_iter=300, n_init=10, random_state=0)
             kmeans.fit(self.pf_debug[:,0:2])
-            index = np.random.choice(a = 20 ,size = Np)
+            index = np.random.choice(a = 5 ,size = Np)
             for i, idx in enumerate(index):
                 self.Rot[i].theta += 0.5  * np.random.randn() + 0.5  * np.random.randn() + 90.0*np.random.choice(4,p = [0.6,0.1,0.2,0.1] )
-                self.Rot[i].x = np.squeeze(kmeans.cluster_centers_[idx,0]) + np.random.normal(0,0.1)
-                self.Rot[i].y = np.squeeze(kmeans.cluster_centers_[idx,1]) + np.random.normal(0,0.1)
+                self.Rot[i].x = np.squeeze(kmeans.cluster_centers_[idx,0]) + np.random.normal(0,0.5)
+                self.Rot[i].y = np.squeeze(kmeans.cluster_centers_[idx,1]) + np.random.normal(0,0.5)
 
 
             self.likelihood_PF()
@@ -356,6 +359,7 @@ class tPF():
         plt.axis([-30, 30, -30, 30])
         plt.scatter(self.maxMap[: , 0] ,self.maxMap[:,1] , color = 'b') # plot tPF map
         plt.scatter(self.oMap.map[: , 0] ,self.oMap.map[:,1] ,color = 'r') # plot origin map
+        plt.scatter(self.DEmap[: , 0] ,self.DEmap[:,1] ,color = 'g') # plot origin map
         plt.subplot(2,2,2)
         plt.scatter(self.pf_debug[:,0], self.pf_debug[:,1])
         plt.subplot(2,2,3)
@@ -395,7 +399,7 @@ class rot(object):
 
     def weight(self , oMap , tMap , nbrs , factor ):
         
-        var = 0.16
+        var = 0.05
         # fit data of map 2 to map 1  
         distances, indices = nbrs.kneighbors(tMap)
         # find the propability 

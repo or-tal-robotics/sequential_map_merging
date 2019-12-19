@@ -3,7 +3,7 @@
 <launch>
 
 <include file="$(find DMM)/launch/empty_world.launch" >
-  <arg name="world_name" value="$(find DMM)/worlds/model.world"/>
+  <arg name="world_name" value="$(find DMM)/worlds/model2.world"/>
 </include>
 
 </launch>
