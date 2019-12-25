@@ -22,444 +22,89 @@ from joblib import Parallel, delayed
 import multiprocessing
 from sklearn.cluster import KMeans
 from sklearn.mixture import BayesianGaussianMixture
+
 ground_trouth_origin = np.array([-11.0, 2.5, 0.0])
 ground_trouth_target = np.array([15, 2.5, -3.14])
-num_cores = multiprocessing.cpu_count()
-class tPF():
-    
-    def __init__(self):
-
-        self.pub = rospy.Publisher('/TM2', Transform , queue_size=1000 )
-        rospy.init_node('listener', anonymous=True)
-       
-        # creat first particales 
-       
-
-        # convert maps to landmarks arrays:
-        self.oMap = maps("LM1")
-        self.anti_oMap = maps("LM1_anti")
-        self.tMap = maps("LM2")
-        self.anti_tMap = maps("LM2_anti")
-        self.best_score = 0
-        self.realT = np.array([-1.5 , -2.5 , 90]) # real transformation
-
-        self.N_eff = 1
-        self.itr = 0
-        self.prob = 0.1
-
-        self.K = 1 # time step for norm2
-
-        self.Nde = []
-        self.NtPF = []
-        self.resample_counter = 0
-        self.init = True
-        self.err_pf = []
-        self.err_de = []
-        while not rospy.is_shutdown():
-
-        
-            if self.oMap.started and self.tMap.started and self.anti_oMap.started and self.anti_tMap.started:
-                
-                #init nbrs for KNN
-                self.nbrs = NearestNeighbors(n_neighbors= 1, algorithm='ball_tree').fit(self.oMap.map)
-                #self.nbrs_anti = NearestNeighbors(n_neighbors= 1, algorithm='ball_tree').fit(self.anti_oMap.map)
-                if self.init == True:
-                    self.initialize_PF()
-                    self.init = False
-                # DE algorithm for finding best match
-                result = differential_evolution(self.func_de, bounds = [(-15,15),(-15,15),(0,360)] ,maxiter= 200 ,popsize=6,tol=0.0001)
-                self.T_de = [result.x[0] , result.x[1] , min(result.x[2], 360 - result.x[2])] 
-                #print self.T_de
-                self.predict()
-                self.likelihood_PF()
-                print "N_eff=:"+str(self.N_eff)
-                self.resample_counter +=1
-                #print resample_counter
-                
-                if self.N_eff < 0.001 and self.resample_counter>5:
-                    self.resampling() # start re-sampling step 
-                    self.resample_counter = 0
-                    self.gibbs_resampling_kmeans(iter_n=1)
-
-                #self.norm2() # finding norm2
-
-               # if self.K == 80 :
-
-                #    self.save_data_DE()
-
-                #self.K += 1
-
-                #self.de_map = self.tMap.rotate2(result.x)
-                self.plotmaps() # plot landmarks of maps.
-                self.oMap.started = False
-                self.tMap.started = False
-                self.anti_oMap.started = False
-                self.anti_tMap.started = False
+import rosbag
+import rospkg 
 
 
-                # c ,s = np.cos(self.T_tPF[2]) , np.sin(self.T_tPF[2])
-                # R = np.array([[c,-s], [s, c]]) #Rotation matrix
-                # gtt1 = np.matmul( ground_trouth_origin[0:2] - self.oMap.cm.T, R ) +  self.T_tPF[0:2] + self.tMap.cm.T# matrix multiplation
-                # #gtt2 = np.matmul( ground_trouth_target[0:2] - self.tMap.cm.T, R ) +  self.T_tPF[0:2] + self.oMap.cm.T# matrix multiplation
-                # #print "gtt1=:"+str((ground_trouth_origin[0:2] - self.oMap.cm.T))
-                # #print "gtt2=:"+str((ground_trouth_target[0:2] - self.tMap.cm.T))
-                # print "gtt1=:"+str(np.linalg.norm(gtt1 + ground_trouth_target[0:2]))
+rospack = rospkg.RosPack()
+packadge_path = rospack.get_path('DMM')
+file_path = packadge_path + '/maps/map5.bag'
 
+def rotate_map(map, T):
+    c ,s = np.cos(T[2]) , np.sin(T[2])
+    R = np.array(((c,-s), (s, c))) #Rotation matrix
+    rot_map = np.matmul(map,R) + T[0:2]
 
+def likelihood(origin_map_nbrs, target_map_rotated, var):
+    d, _ = origin_map_nbrs.kneighbors(target_map_rotated)
+    p = np.sum((1/(np.sqrt(2*np.pi*var)))*np.exp(-np.power(d,2)/(2*var))) 
+    return p
 
-    def save_data_DE(self):
-
-        if os.path.isfile('~/DE.csv'):
-            with open('~/DE.csv', 'a') as f:
-                self.save_stat_DE('~/DE.csv', ex = True, f=f)
-        else:
-            self.save_stat_DE('~/DE.csv', ex = False)
-
-        print 'save data'
-
-    def save_stat_DE(self,file_path, ex, f = None):
-
-        data = {'De': self.Nde }
-                
-        df = pd.DataFrame(data, columns= ['De'])
-
-        if ex==False:
-            df.to_csv(file_path, sep='\t')
-        else:
-            df.to_csv(f, sep='\t', header=False)
-
-    def save_data_tPF(self):
-
-        if os.path.isfile('~/tPF.csv'):
-            with open('~/tPF.csv', 'a') as f:
-                self.save_stat_tPF('~/tPF.csv', ex = True, f=f)
-        else:
-            self.save_stat_tPF('~/tPF.csv', ex = False)
-
-        print 'data saved'
-
-    def save_stat_tPF(self,file_path, ex, f = None):
-
-        data = {'tPF': self.NtPF}
-                
-        df = pd.DataFrame(data, columns= ['tPF'])
-
-        if ex==False:
-            df.to_csv(file_path, sep='\t')
-        else:
-            df.to_csv(f, sep='\t', header=False)
-
-    def initialize_PF( self , angles = np.linspace(0 , 360 ,30 ) , xRange = np.linspace(-15 , 15 , 30) , yRange = np.linspace(-15 , 15 ,30) ,fire_up = 3000, Np = 200):
-       
-        # make a list of class rot(s)
-        self.Rot = []
-        Rot = []
-        x0 = rot(angles[np.random.randint(len(angles))] ,
-            xRange[np.random.randint(len(xRange))] ,
-            yRange[np.random.randint(len(yRange))])
-        tempMap = self.tMap.rotate(x0.x ,x0.y , x0.theta)
-        tMap_anti = self.anti_tMap.rotate(x0.x ,x0.y , x0.theta)
-        x0.weight2(self.oMap.map , tempMap, self.anti_oMap.map , tMap_anti , self.nbrs , 0.9,  1 )
-        Rot.append(x0)
-        i=0
-        while i < fire_up:
-            xt = rot(angles[np.random.randint(len(angles))] +0.5  * np.random.randn(),
-                xRange[np.random.randint(len(xRange))] +0.5  * np.random.randn(),
-                yRange[np.random.randint(len(yRange))]+0.5  * np.random.randn())
-            tempMap = self.tMap.rotate(xt.x ,xt.y , xt.theta)
-            tMap_anti = self.anti_tMap.rotate(xt.x ,xt.y , xt.theta)
-            xt.weight2(self.oMap.map , tempMap, self.anti_oMap.map , tMap_anti , self.nbrs , 0.9,  1 )
-            if xt.score>x0.score:
-                Rot.append(xt)
+class ParticleFilterMapMatcher():
+    def __init__(self,init_origin_map_nbrs, init_target_map, Np = 1000, N_history = 15,  N_theta = 30, N_x = 30, N_y = 30, R_var = 0.1):
+        self.Np = Np
+        self.R_var = R_var
+        self.N_history = N_history
+        self.filter = np.arange(1,N_history+1)/np.sum(np.arange(1,N_history+1))
+        temp_X = []
+        angles = np.linspace(0 , 2*np.pi ,N_theta )
+        xRange = np.linspace(-15 , 15 , N_x)
+        yRange = np.linspace(-15 , 15 ,N_y)
+        x0 = [xRange[np.random.randint(N_x)] ,yRange[np.random.randint(N_y), angles[np.random.randint(N_theta)]
+        tempMap = rotate_map(init_target_map, x0)
+        w0 = likelihood(tempMap, init_origin_map_nbrs, self.R_var)
+        temp_X.append(x0)
+        for i in range(N_theta*N_x*N_y):
+            xt = [xRange[np.random.randint(N_x)] +0.5  * np.random.randn(),
+                yRange[np.random.randint(N_y)]+0.5  * np.random.randn(),
+                angles[np.random.randint(N_theta)] +0.5  * np.random.randn()]
+            tempMap = rotate_map(init_target_map, xt)
+            wt = likelihood(tempMap, init_origin_map_nbrs, self.R_var)
+            if wt>w0:
+                temp_X.append(xt)
                 x0 = xt
-                i+=1
-            elif np.random.binomial(1, xt.score/x0.score) == 1:
-                Rot.append(xt)
+            elif np.random.binomial(1, wt/w0) == 1:
+                temp_X.append(xt)
                 x0 = xt
-                i+=1
-            else:
-                Rot.append(x0)
-                i+=1
-        self.Rot = Rot[-Np:]
-        self.pf_debug = np.zeros((len(self.Rot),3))
-        print ("initialaize PF whith") , len(self.Rot) ,(" samples completed")
+        self.X = np.array(temp_X[-Np:])
+        self.W = np.ones((Np,N_history)
+        self.indicate = 0
+    def predict(self):
+        self.X[:,0:2] = self.X[:,0:2] + np.random.normal(0.0, 0.1, size=self.X[:,0:2].shape)
+        self.X[:,2] = self.X[:,2] + np.random.normal(0.0, 0.01, size=self.X[:,2].shape)
 
-    def likelihood_PF(self):
+    def update(self, target_map, origin_map_nbrs):
+        for i in range(self.Np):
+            tempMap = rotate_map(target_map, self.X[i])
+            self.W[i, self.indicate] = likelihood(tempMap, origin_map_nbrs, self.R_var)
+        self.indicate += 1
 
-        self.scores = []
-        factor = np.power(1 - self.prob , self.resample_counter - self.itr )
-        self.itr +=1 
-
-        for i in self.Rot:    
-            # 'tempMap' ->  map after transformation the secondery map [T(tMap)]:
-            tempMap = self.tMap.rotate(i.x ,i.y , i.theta)
-            #tMap_anti = self.anti_tMap.rotate(i.x ,i.y , i.theta)
-            #i.weight2(self.oMap.map , tempMap, self.anti_oMap.map , tMap_anti , self.nbrs , 1.0,  1.0 )
-            i.weight(self.oMap.map , tempMap ,self.nbrs , factor)
-            self.scores.append(i.score) # add weights to array 
-        w = np.array(self.scores)
-        self.N_eff = 1/np.sum(np.power(w,2))
-        maxt = max( self.Rot , key = operator.attrgetter('score') ) # finds partical with maximum score
-
-        if maxt.score > self.best_score:          
-        # check if there is a new partical thats better then previuos partical
-            self.maxt = maxt
-          
-            self.maxMap = self.tMap.rotate(self.maxt.x ,self.maxt.y , self.maxt.theta )
-            self.best_score =  maxt.score
-
-            self.T_tPF = [self.maxt.x ,self.maxt.y , np.radians(self.maxt.theta)]
-            print 'max W(tPF):' ,self.T_tPF
-
-    def resampling(self):
-
-        self.itr = 0
-        W = self.scores/np.sum(self.scores) # Normalized scores for resampling 
-        Np = len(self.Rot)
-        index = np.random.choice(a = Np ,size = Np ,p = W ) # resample by score
-        Rot_arr = [] # creat new temporery array for new sampels 
-
-        for i in index:
-            tmp_rot = copy.deepcopy(self.Rot[i])
-            tmp_rot.add_noise() # add noise to current sample and set score to 0
-            Rot_arr.append(tmp_rot) # resample by weights
-
-        self.Rot = Rot_arr
-        self.best_score = 0
-        print 'resample done'
-
-    def gibbs_resampling_kmeans(self, iter_n = 1):
-        self.itr = 0
-        Np = len(self.Rot)
-        for iter in range(iter_n):
-            kmeans = KMeans(n_clusters=20, init='k-means++', max_iter=300, n_init=10, random_state=0)
-            kmeans.fit(self.pf_debug[:,0:2])
-            index = np.random.choice(a = 20 ,size = Np)
-            for i, idx in enumerate(index):
-                self.Rot[i].theta += 0.5  * np.random.randn() + 0.5  * np.random.randn() + 90.0*np.random.choice(4,p = [0.6,0.1,0.2,0.1] )
-                self.Rot[i].x = np.squeeze(kmeans.cluster_centers_[idx,0]) + np.random.normal(0,0.1)
-                self.Rot[i].y = np.squeeze(kmeans.cluster_centers_[idx,1]) + np.random.normal(0,0.1)
+    def resample(self):
 
 
-            self.likelihood_PF()
-            W = self.scores/np.sum(self.scores) # Normalized scores for resampling 
-            Np = len(self.Rot)
-            index = np.random.choice(a = Np ,size = Np ,p = W ) # resample by score
-            Rot_arr = []
-            Rot_arr = self.Rot # creat new temporery array for new sampels 
-
-            
-
-            # kmeans = KMeans(n_clusters=20, init='k-means++', max_iter=300, n_init=10, random_state=0)
-            # kmeans.fit(self.pf_debug[:,2].reshape((-1,1)))
-            # index = np.random.choice(a =20 ,size = Np)
-            # for i, idx in enumerate(index):
-            #     self.Rot[i].theta = np.squeeze(kmeans.cluster_centers_[idx]) + 0.5  * np.random.randn() + 90.0*np.random.choice(4,p = [0.8,0.05,0.1,0.05] )
-            #     self.Rot[i].x += np.random.normal(0,0.1)
-            #     self.Rot[i].y += np.random.normal(0,0.1)
-            
-            # self.likelihood_PF()
-            # W = self.scores/np.sum(self.scores) # Normalized scores for resampling 
-            # Np = len(self.Rot)
-            # index = np.random.choice(a = Np ,size = Np ,p = W ) # resample by score
-            # Rot_arr = []
-            # Rot_arr = self.Rot # creat new temporery array for new sampels 
-
-
-            print 'resample done'
-
-    def gibbs_resampling_EM(self, iter_n = 1):
-        self.itr = 0
-        Np = len(self.Rot)
-        for iter in range(iter_n):
-            EM = BayesianGaussianMixture(n_components = 10)
-            EM.fit(self.pf_debug[:,0:2])
-            for i in range(Np):
-                sample = EM.sample()
-                self.Rot[i].theta += 0.5  * np.random.randn() + 90.0*np.random.choice(4,p = [0.8,0.05,0.1,0.05] )
-                self.Rot[i].x = np.squeeze(sample[0]) 
-                self.Rot[i].y = np.squeeze(sample[1]) 
-
-
-            self.likelihood_PF()
-            W = self.scores/np.sum(self.scores) # Normalized scores for resampling 
-            Np = len(self.Rot)
-            index = np.random.choice(a = Np ,size = Np ,p = W ) # resample by score
-            Rot_arr = []
-            Rot_arr = self.Rot # creat new temporery array for new sampels 
-
-            
-
-            kmeans = KMeans(n_clusters=4, init='k-means++', max_iter=300, n_init=10, random_state=0)
-            kmeans.fit(self.pf_debug[:,2].reshape((-1,1)))
-            index = np.random.choice(a = 4 ,size = Np)
-            for i, idx in enumerate(index):
-                self.Rot[i].theta = np.squeeze(kmeans.cluster_centers_[idx]) + 0.5  * np.random.randn()
-                self.Rot[i].x += np.random.normal(0,0.01)
-                self.Rot[i].y += np.random.normal(0,0.01)
-
-            print 'resample done'
-
-    def predict(self):        
-
-        for i in range(len(self.Rot)):
-            self.Rot[i].theta += 0.5  * np.random.randn()
-            self.Rot[i].x += 0.2  * np.random.randn()
-            self.Rot[i].y += 0.2  * np.random.randn()
-            self.pf_debug[i,0] = self.Rot[i].x
-            self.pf_debug[i,1] = self.Rot[i].y
-            self.pf_debug[i,2] = self.Rot[i].theta
-
- 
-    def func_de(self , T):
-
-        X = self.tMap.rotate2(T)
-
-        var = 0.16        
-        # fit data of map 2 to map 1  
-        distances, indices = self.nbrs.kneighbors(X)
-        # find the propability 
-        prob = (1/(np.sqrt(2*np.pi*var)))*np.exp(-np.power(distances,2)/(2*var)) 
-        # returm the 'weight' of this transformation
-        wiegth = np.sum((prob)/prob.shape[0])+0.000001 #np.sum(prob)
-
-        return -wiegth # de algo minimized this value
-
-    def norm2(self):
-        
-        # find norm 2 of transformation 
-        normDE = np.linalg.norm(self.T_de - self.realT) 
-       # normtPF = np.linalg.norm(self.T_tPF - self.realT) 
-        self.Nde.append(normDE)
-       # self.NtPF.append(normtPF)
-        #self.plot_norms(normDE , normtPF)
-        
-    def plot_norms(self , normDE , normtPF ):
-
-        plt.axis([0 , 60, 0,  180])
-       # plt.scatter(self.K ,normDE , color = 'b') # plot tPF map
-        plt.scatter(self.K ,normtPF ,color = 'r') # plot origin map
-        plt.pause(0.05)
-
-        
- 
-    def plotmaps(self):
-
-        #plt.axis([-60, 60, -60, 60])
-        plt.subplot(1,3,1)
-        #plt.axis([-50+self.oMap.cm[0], 50+self.oMap.cm[0], -50+self.oMap.cm[1], 50+self.oMap.cm[1]])
-        plt.axis([-30, 30, -30, 30])
-        plt.scatter(self.maxMap[: , 0] ,self.maxMap[:,1] , color = 'b') # plot tPF map
-        plt.scatter(self.oMap.map[: , 0] ,self.oMap.map[:,1] ,color = 'r') # plot origin map
-        plt.subplot(1,3,2)
-        plt.scatter(self.pf_debug[:,0], self.pf_debug[:,1])
-
-
-
-        c ,s = np.cos(self.T_tPF[2]) , np.sin(self.T_tPF[2])
-        R = np.array([[c,-s], [s, c]]) #Rotation matrix
-        gtt1 = np.matmul( ground_trouth_origin[0:2] - self.oMap.cm.T, R ) +  self.T_tPF[0:2] + self.tMap.cm.T# matrix multiplation
-        gtt_de = np.matmul( ground_trouth_origin[0:2] - self.oMap.cm.T, R ) +  self.T_de[0:2] + self.tMap.cm.T# matrix multiplation
-        
-        self.err_pf.append(np.linalg.norm(gtt1 + ground_trouth_target[0:2]))
-        self.err_de.append(np.linalg.norm(gtt_de + ground_trouth_target[0:2]))
-        plt.subplot(1,3,3)
-        plt.plot(self.err_pf, color = 'b')
-        plt.plot(self.err_de, color = 'r')
-
-        #plt.scatter(self.de_map[: , 0] ,self.de_map[:,1] , color = 'g') # plot DE map
-        plt.pause(0.05)
-        plt.clf()
-
-class rot(object):
-    
-    # define 'rot' to be the class of the rotation for resamplimg filter
-
-    def __init__(self , theta , xShift , yShift):
-         self.theta = theta
-         self.x = xShift
-         self.y = yShift
-         self.score = 0 
-
-
-
-    def weight(self , oMap , tMap , nbrs , factor ):
-        
-        var = 0.16
-        # fit data of map 2 to map 1  
-        distances, indices = nbrs.kneighbors(tMap)
-        # find the propability 
-        prob = (1/(np.sqrt(2*np.pi*var)))*np.exp(-np.power(distances,2)/(2*var)) 
-        # returm the 'weight' of this transformation
-        wiegth = np.sum((prob)/prob.shape[0])+0.000001 #np.sum(prob) 
-        
-        self.score += wiegth * factor # sum up score
-
-    def weight2(self , oMap , tMap, oMap_anti , tMap_anti , oMap_nbrs , alpha,  factor ):
-        var1 = 0.1
-        var2 = 0.016
-        tMap_distances, _ = oMap_nbrs.kneighbors(tMap)
-        tMap_anti_distances, _ = oMap_nbrs.kneighbors(tMap_anti)
-        tMap_prob = (1/(np.sqrt(2*np.pi*var1)))*np.exp(-np.power(tMap_distances,2)/(2*var1)) 
-        tMap_anti_prob = (1/(np.sqrt(2*np.pi*var2)))*np.exp(-np.power(tMap_anti_distances,2)/(2*var2))
-        tMap_w = np.sum((tMap_prob)/tMap_prob.shape[0])+0.000001
-        tMap_anti_w = np.exp(-(np.sum((tMap_anti_prob)/tMap_anti_prob.shape[0])+0.000001))      
-        self.score += (tMap_w**alpha)*(tMap_anti_w**(1-alpha))* factor 
-
-     
-    def add_noise(self):
-        self.x += 0.01 * np.random.randn()
-        self.y += 0.01 * np.random.randn()
-        self.theta += 0.5  * np.random.randn() + 90.0*np.random.choice(4,p = [0.8,0.05,0.1,0.05] )
-        self.score=0
-
-class maps:
-
-    def __init__(self , topic_name ):
-        
-        self.check = True
-        self.started = False # indicate if msg recived
-        self.map = None #landmarks array
-        self.cm = None
-        self.name = topic_name
-
-        rospy.Subscriber( topic_name , numpy_msg(Floats) , self.callback)
-               
-    def callback(self ,data):
-        # reshape array from 1D to 2D
-        landmarks = np.reshape(data.data, (-1, 2))
-        # finding C.M for the first iterration
-
-        if self.check:
-            # determin the center of the map for initilaized map origin
-            self.cm = np.sum(np.transpose(landmarks),axis=1)/len(landmarks)
-            print ('set origin of: '), (self.name)
-            self.check = False
-            
-        self.map = np.array(landmarks , dtype= "int32") - self.cm.T
-        #print self.map
-        self.started = True
-
-    def rotate(self, xShift, yShift , RotationAngle): #rotat map for tPF
-      
-        theta = np.radians(RotationAngle) # angles to radians
-        c ,s = np.cos(theta) , np.sin(theta)
-        R = np.array([[c,-s], [s, c]]) #Rotation matrix
-        RotatedLandmarks = np.matmul( self.map , R ) + np.array([xShift , yShift ]) # matrix multiplation
-
-        return  RotatedLandmarks
-   
-    def rotate2(self, T): #rotat map for DE
-      
-        theta = np.radians(T[2]) # angles to radians
-        c ,s = np.cos(theta) , np.sin(theta)
-        R = np.array(((c,-s), (s, c))) #Rotation matrix
-        RotatedLandmarks = np.matmul( self.map , R ) + np.array([T[0] , T[1]]) # matrix multiplation
-
-        return  RotatedLandmarks
    
 if __name__ == '__main__':
-   
-    print ("Running")
-    PFtry = tPF() # 'tPF' : Partical Filter
-    rospy.spin()
+    bag = rosbag.Bag(file_path)
+    for topic, msg, t in bag.read_messages(topics=['/ABot1/map', '/ABot2/map']):
+        #print(msg)
+        print(topic)
+        if topic == '/ABot1/map':
+            map1 = np.array(msg.data , dtype = np.float32)
+            N1 = np.sqrt(map1.shape)[0].astype(np.int32)
+            Re1 = np.copy(map1.reshape((N1,N1)))
+            scale1 = msg.info.resolution
+            landMarksArray1 = (np.argwhere( Re1 == 100 ) * scale1) 
+            nbrs = NearestNeighbors(n_neighbors= 1, algorithm='ball_tree').fit(landMarksArray1)
+            print(landMarksArray1.shape)
+        if topic == '/ABot2/map':
+            map2 = np.array(msg.data , dtype = np.float32)
+            N2 = np.sqrt(map2.shape)[0].astype(np.int32)
+            Re2 = np.copy(map2.reshape((N2,N2)))
+            scale2 = msg.info.resolution
+            landMarksArray2 = (np.argwhere( Re2 == 100 ) * scale2)
+            print(landMarksArray2.shape)
+        
+        
