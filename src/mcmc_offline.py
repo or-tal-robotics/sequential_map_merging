@@ -23,8 +23,8 @@ import multiprocessing
 from sklearn.cluster import KMeans
 from sklearn.mixture import BayesianGaussianMixture
 
-ground_trouth_origin = np.array([-11.0, 2.5, 0.0])
-ground_trouth_target = np.array([15, 2.5, -3.14])
+ground_trouth_origin = np.array([-12,-5.0, 0])
+ground_trouth_target = np.array([4.0, -8.0, -2.75])
 import rosbag
 import rospkg 
 
@@ -37,74 +37,172 @@ def rotate_map(map, T):
     c ,s = np.cos(T[2]) , np.sin(T[2])
     R = np.array(((c,-s), (s, c))) #Rotation matrix
     rot_map = np.matmul(map,R) + T[0:2]
+    return rot_map
 
-def likelihood(origin_map_nbrs, target_map_rotated, var):
+def likelihood(target_map_rotated, origin_map_nbrs, var):
     d, _ = origin_map_nbrs.kneighbors(target_map_rotated)
-    p = np.sum((1/(np.sqrt(2*np.pi*var)))*np.exp(-np.power(d,2)/(2*var))) 
+    p = np.sum((1/(np.sqrt(2*np.pi*var)))*np.exp(-np.power(d,2)/(2*var))) + 1e-100
     return p
 
+def get_error(T, origin, target):
+    c ,s = np.cos(T[2]) , np.sin(T[2])
+    R = np.array([[c,-s], [s, c]]) #Rotation matrix
+    ct ,st = np.cos(target[2]) , np.sin(target[2])
+    Rt = np.array([[ct,-st], [st, ct]])
+    gtt1 =  np.matmul(origin[0:2],R)+T[0:2]-np.matmul(target[0:2],Rt)# matrix multiplation
+    return  np.linalg.norm(gtt1 - target[0:2])
+
+
+def DEMapMatcher(origin_map_nbrs, target_map):
+    DE_func = lambda x: -likelihood(rotate_map(target_map,x),origin_map_nbrs, 0.01)
+    result = differential_evolution(DE_func, bounds = [(-15,15),(-15,15),(0,2*np.pi)] ,maxiter= 100 ,popsize=3,tol=0.0001)
+    T_de = [result.x[0] , result.x[1] , min(result.x[2], 2*np.pi - result.x[2])]
+    return T_de
+
 class ParticleFilterMapMatcher():
-    def __init__(self,init_origin_map_nbrs, init_target_map, Np = 1000, N_history = 15,  N_theta = 30, N_x = 30, N_y = 30, R_var = 0.1):
+    def __init__(self,init_origin_map_nbrs, init_target_map, Np = 2000, N_history = 10,  N_theta = 50, N_x = 20, N_y = 20, R_var = 0.01):
         self.Np = Np
         self.R_var = R_var
         self.N_history = N_history
-        self.filter = np.arange(1,N_history+1)/np.sum(np.arange(1,N_history+1))
+        self.filter = np.arange(3,N_history+3,dtype=np.float32)
         temp_X = []
         angles = np.linspace(0 , 2*np.pi ,N_theta )
-        xRange = np.linspace(-15 , 15 , N_x)
-        yRange = np.linspace(-15 , 15 ,N_y)
-        x0 = [xRange[np.random.randint(N_x)] ,yRange[np.random.randint(N_y), angles[np.random.randint(N_theta)]
+        xRange = np.linspace(-15 , 15 , N_x) 
+        yRange = np.linspace(-15 , 15 ,N_y) 
+        x0 = [xRange[np.random.randint(N_x)] ,yRange[np.random.randint(N_y)], angles[np.random.randint(N_theta)]]
         tempMap = rotate_map(init_target_map, x0)
         w0 = likelihood(tempMap, init_origin_map_nbrs, self.R_var)
         temp_X.append(x0)
-        for i in range(N_theta*N_x*N_y):
-            xt = [xRange[np.random.randint(N_x)] +0.5  * np.random.randn(),
-                yRange[np.random.randint(N_y)]+0.5  * np.random.randn(),
-                angles[np.random.randint(N_theta)] +0.5  * np.random.randn()]
+        i = 0
+        print("Initilizing particles...")
+        while i < (N_theta*N_x*N_y):
+            xt = [xRange[np.random.randint(N_x)],
+                yRange[np.random.randint(N_y)],
+                angles[np.random.randint(N_theta)]]
             tempMap = rotate_map(init_target_map, xt)
             wt = likelihood(tempMap, init_origin_map_nbrs, self.R_var)
             if wt>w0:
                 temp_X.append(xt)
                 x0 = xt
+                w0 = wt
             elif np.random.binomial(1, wt/w0) == 1:
                 temp_X.append(xt)
                 x0 = xt
+                w0 = wt
+            elif np.random.binomial(1, 0.5) == 1:
+                temp_X.append(xt)
+                x0 = xt
+                w0 = wt
+            else:
+                x = x0
+                x[0] = x[0] + np.random.normal(0.0, 0.1)
+                x[1] = x[1] + np.random.normal(0.0, 0.1)
+                x[2] = x[2] + np.random.normal(0.0, 0.1) + np.random.choice(a = 4,p = [0.4,0.2,0.2,0.2] )*0.5*np.pi
+                x[2] = np.remainder(x[2],2*np.pi)
+                temp_X.append(x)
+            i += 1
         self.X = np.array(temp_X[-Np:])
-        self.W = np.ones((Np,N_history)
+        self.W = np.ones((Np,N_history))
         self.indicate = 0
+        print("Initilizing done with "+str(Np)+" samples out of "+str(len(temp_X)))
     def predict(self):
         self.X[:,0:2] = self.X[:,0:2] + np.random.normal(0.0, 0.1, size=self.X[:,0:2].shape)
-        self.X[:,2] = self.X[:,2] + np.random.normal(0.0, 0.01, size=self.X[:,2].shape)
+        self.X[:,2] = self.X[:,2] + np.random.normal(0.0, 0.1, size=self.X[:,2].shape)
+        self.X[:,2] = np.remainder(self.X[:,2],2*np.pi)
 
     def update(self, target_map, origin_map_nbrs):
         for i in range(self.Np):
             tempMap = rotate_map(target_map, self.X[i])
-            self.W[i, self.indicate] = likelihood(tempMap, origin_map_nbrs, self.R_var)
+            if self.indicate > 0:
+                self.W[i, self.indicate] = self.W[i, self.indicate - 1] * likelihood(tempMap, origin_map_nbrs, self.R_var)
+            else:
+                self.W[i, self.indicate] = likelihood(tempMap, origin_map_nbrs, self.R_var)
         self.indicate += 1
-
+        p = np.dot(self.W, self.filter)
+        #self.X_map = self.X[np.argmax(p)]
     def resample(self):
-
+        print("performing resample!")
+        p = np.dot(self.W, self.filter)
+        #print(self.W.shape)
+        #print(p)
+        #print(self.filter)
+        p = p/np.sum(p)
+        self.X_map = self.X[np.argmax(p)]
+        idxs = np.random.choice(a = self.Np, size = self.Np,p = p)
+        self.X = self.X[idxs]
+        self.X[:,0] = self.X[:,0] + np.random.normal(0.0, 0.2, size=self.X[:,0].shape) + np.random.choice(a = 5, size = self.X[:,0].shape,p = [0.6,0.1,0.1,0.1, 0.1] )*2.0
+        self.X[:,1] = self.X[:,1] + np.random.normal(0.0, 0.2, size=self.X[:,1].shape) + np.random.choice(a = 5, size = self.X[:,1].shape,p = [0.6,0.1,0.1,0.1, 0.1]  )*2.0
+        self.X[:,2] = self.X[:,2] + np.random.normal(0.0, 0.01, size=self.X[:,2].shape) + np.random.choice(a = 4, size = self.X[:,2].shape,p = [0.4,0.2,0.2,0.2] )*0.5*np.pi
+        self.X[:,2] = np.remainder(self.X[:,2],2*np.pi)
+        self.indicate = 0
 
    
 if __name__ == '__main__':
     bag = rosbag.Bag(file_path)
+    init, init1, init2 = 1, 1, 1
+    err_pf = []
+    err_de = []
     for topic, msg, t in bag.read_messages(topics=['/ABot1/map', '/ABot2/map']):
         #print(msg)
-        print(topic)
+        #print(topic)
         if topic == '/ABot1/map':
             map1 = np.array(msg.data , dtype = np.float32)
             N1 = np.sqrt(map1.shape)[0].astype(np.int32)
             Re1 = np.copy(map1.reshape((N1,N1)))
             scale1 = msg.info.resolution
-            landMarksArray1 = (np.argwhere( Re1 == 100 ) * scale1) 
+            landMarksArray1 = (np.argwhere( Re1 == 100 ) * scale1)
+            if init1 == 1:
+                cm1 = np.sum(np.transpose(landMarksArray1),axis=1)/len(landMarksArray1)
+                #ground_trouth_origin[0:2] = ground_trouth_origin[0:2] -  cm1
+            landMarksArray1 = landMarksArray1 - cm1
             nbrs = NearestNeighbors(n_neighbors= 1, algorithm='ball_tree').fit(landMarksArray1)
-            print(landMarksArray1.shape)
+            #print(landMarksArray1.shape)
+            init1 = 0
         if topic == '/ABot2/map':
             map2 = np.array(msg.data , dtype = np.float32)
             N2 = np.sqrt(map2.shape)[0].astype(np.int32)
             Re2 = np.copy(map2.reshape((N2,N2)))
             scale2 = msg.info.resolution
             landMarksArray2 = (np.argwhere( Re2 == 100 ) * scale2)
-            print(landMarksArray2.shape)
+            if init2 == 1:
+                cm2 = np.sum(np.transpose(landMarksArray2),axis=1)/len(landMarksArray2) 
+                #ground_trouth_target[0:2] = ground_trouth_target[0:2] - cm2
+            landMarksArray2 = landMarksArray2 - cm2
+            
+            #print(landMarksArray2.shape)
+            init2 = 0
+        if init == 1 and init1 == 0 and init2 == 0:
+            model = ParticleFilterMapMatcher(nbrs, landMarksArray2)
+            init = 0
+        elif init == 0 and init1 == 0 and init2 == 0:
+            #print(cm1, cm2)
+            model.predict()
+            model.update(landMarksArray2, nbrs)
+            X_de = DEMapMatcher(nbrs, landMarksArray2)
+            if model.indicate == model.N_history:
+                model.resample()
+                map_star = rotate_map(landMarksArray2, model.X_map)
+                map_de = rotate_map(landMarksArray2, X_de)
+                #print(model.X_map)
+                plt.subplot(3,1,1)
+                plt.axis([-22, 22, -22, 22])
+                plt.scatter(map_star[: , 0] ,map_star[:,1] , color = 'b') # plot tPF map
+                plt.scatter(map_de[: , 0] ,map_de[:,1] , color = 'g')
+                plt.scatter(landMarksArray1[: , 0] ,landMarksArray1[:,1] ,color = 'r', marker=',', linewidths=0.01) # plot origin map
+
+                plt.subplot(3,1,2)
+                plt.scatter(model.X[:,0], model.X[:,1])
+
+                err_pf.append(get_error(model.X_map, ground_trouth_origin, ground_trouth_target ))
+                err_de.append(get_error(X_de, ground_trouth_origin, ground_trouth_target ))
+                plt.subplot(3,1,3)
+                plt.plot(err_pf, color = 'b')
+                plt.plot(err_de, color = 'r')
+                plt.pause(0.05)
+                plt.clf()
+    raw_input("Press Enter to continue...")
+
+    
+
         
         
