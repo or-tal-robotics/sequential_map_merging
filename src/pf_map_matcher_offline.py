@@ -127,7 +127,6 @@ if __name__ == '__main__':
                 landMarksArray1 = (np.argwhere( Re1 == 100 ) * scale1)
                 if init1 == 1:
                     cm1 = np.sum(np.transpose(landMarksArray1),axis=1)/len(landMarksArray1)
-                    ground_trouth_origin[0:2] = ground_trouth_origin[0:2] -  cm1
                 landMarksArray1 = landMarksArray1 - cm1
                 nbrs = NearestNeighbors(n_neighbors= 1, algorithm='ball_tree').fit(landMarksArray1)
                 init1 = 0
@@ -139,7 +138,6 @@ if __name__ == '__main__':
                 landMarksArray2 = (np.argwhere( Re2 == 100 ) * scale2)
                 if init2 == 1:
                     cm2 = np.sum(np.transpose(landMarksArray2),axis=1)/len(landMarksArray2) 
-                    ground_trouth_target[0:2] = np.flip(ground_trouth_target[0:2])  -  cm2
                 landMarksArray2 = landMarksArray2 - cm2
                 
                 init2 = 0
