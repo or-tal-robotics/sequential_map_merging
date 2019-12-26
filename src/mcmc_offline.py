@@ -1,24 +1,16 @@
 #!/usr/bin/env python
 import rospy
 import numpy as np
-from rospy_tutorials.msg import Floats # for landmarks array
-from rospy.numpy_msg import numpy_msg # for landmarks array 
 import matplotlib.pyplot as plt
 from sklearn.neighbors import NearestNeighbors # for KNN algorithm
-from geometry_msgs.msg import Transform # for transpose of map
-import operator
 from scipy.optimize import differential_evolution
 import copy
 import pandas as pd
-import os
-from joblib import Parallel, delayed
-import multiprocessing
-from sklearn.cluster import KMeans
-from sklearn.mixture import BayesianGaussianMixture
 
 ground_trouth_origin = np.array([-12,-5.0, 0])
 ground_trouth_target = np.array([4.0, -8.0, -2.75])
 
+ground_trouth_transformation = np.array([-6.94304748,  9.92673817,  3.56565882])
 import rosbag
 import rospkg 
 
@@ -29,7 +21,7 @@ file_path = packadge_path + '/maps/map5.bag'
 
 def rotate_map(map, T):
     c ,s = np.cos(T[2]) , np.sin(T[2])
-    R = np.array(((c,-s), (s, c))) #Rotation matrix
+    R = np.array(((c,-s), (s, c))) 
     rot_map = np.matmul(map,R) + T[0:2]
     return rot_map
 
@@ -38,13 +30,8 @@ def likelihood(target_map_rotated, origin_map_nbrs, var):
     p = np.sum((1/(np.sqrt(2*np.pi*var)))*np.exp(-np.power(d,2)/(2*var))) + 1e-100
     return p
 
-def get_error(T, origin, target):
-    c ,s = np.cos(T[2]) , np.sin(T[2])
-    R = np.array([[c,-s], [s, c]]) #Rotation matrix
-    ct ,st = np.cos(target[2]) , np.sin(target[2])
-    Rt = np.array([[ct,-st], [st, ct]])
-    gtt1 =  np.matmul(origin[0:2],R)+T[0:2]-np.matmul(target[0:2],Rt)# matrix multiplation
-    return  np.linalg.norm(gtt1 - target[0:2])
+def get_error(T): 
+    return  np.linalg.norm(T - ground_trouth_transformation)
 
 
 def DEMapMatcher(origin_map_nbrs, target_map):
@@ -113,13 +100,9 @@ class ParticleFilterMapMatcher():
                 self.W[i, self.indicate] = likelihood(tempMap, origin_map_nbrs, self.R_var)
         self.indicate += 1
         p = np.dot(self.W, self.filter)
-        #self.X_map = self.X[np.argmax(p)]
     def resample(self):
         print("performing resample!")
         p = np.dot(self.W, self.filter)
-        #print(self.W.shape)
-        #print(p)
-        #print(self.filter)
         p = p/np.sum(p)
         self.X_map = self.X[np.argmax(p)]
         idxs = np.random.choice(a = self.Np, size = self.Np,p = p)
@@ -137,8 +120,7 @@ if __name__ == '__main__':
     err_pf = []
     err_de = []
     for topic, msg, t in bag.read_messages(topics=['/ABot1/map', '/ABot2/map']):
-        #print(msg)
-        #print(topic)
+
         if topic == '/ABot1/map':
             map1 = np.array(msg.data , dtype = np.float32)
             N1 = np.sqrt(map1.shape)[0].astype(np.int32)
@@ -147,10 +129,9 @@ if __name__ == '__main__':
             landMarksArray1 = (np.argwhere( Re1 == 100 ) * scale1)
             if init1 == 1:
                 cm1 = np.sum(np.transpose(landMarksArray1),axis=1)/len(landMarksArray1)
-                #ground_trouth_origin[0:2] = ground_trouth_origin[0:2] -  cm1
+                ground_trouth_origin[0:2] = ground_trouth_origin[0:2] -  cm1
             landMarksArray1 = landMarksArray1 - cm1
             nbrs = NearestNeighbors(n_neighbors= 1, algorithm='ball_tree').fit(landMarksArray1)
-            #print(landMarksArray1.shape)
             init1 = 0
         if topic == '/ABot2/map':
             map2 = np.array(msg.data , dtype = np.float32)
@@ -160,16 +141,15 @@ if __name__ == '__main__':
             landMarksArray2 = (np.argwhere( Re2 == 100 ) * scale2)
             if init2 == 1:
                 cm2 = np.sum(np.transpose(landMarksArray2),axis=1)/len(landMarksArray2) 
-                #ground_trouth_target[0:2] = ground_trouth_target[0:2] - cm2
+                ground_trouth_target[0:2] = np.flip(ground_trouth_target[0:2])  -  cm2
             landMarksArray2 = landMarksArray2 - cm2
             
-            #print(landMarksArray2.shape)
             init2 = 0
         if init == 1 and init1 == 0 and init2 == 0:
             model = ParticleFilterMapMatcher(nbrs, landMarksArray2)
+            
             init = 0
         elif init == 0 and init1 == 0 and init2 == 0:
-            #print(cm1, cm2)
             model.predict()
             model.update(landMarksArray2, nbrs)
             X_de = DEMapMatcher(nbrs, landMarksArray2)
@@ -177,7 +157,6 @@ if __name__ == '__main__':
                 model.resample()
                 map_star = rotate_map(landMarksArray2, model.X_map)
                 map_de = rotate_map(landMarksArray2, X_de)
-                #print(model.X_map)
                 plt.subplot(3,1,1)
                 plt.axis([-22, 22, -22, 22])
                 plt.scatter(map_star[: , 0] ,map_star[:,1] , color = 'b') # plot tPF map
@@ -187,8 +166,8 @@ if __name__ == '__main__':
                 plt.subplot(3,1,2)
                 plt.scatter(model.X[:,0], model.X[:,1])
 
-                err_pf.append(get_error(model.X_map, ground_trouth_origin, ground_trouth_target ))
-                err_de.append(get_error(X_de, ground_trouth_origin, ground_trouth_target ))
+                err_pf.append(get_error(model.X_map))
+                err_de.append(get_error(X_de ))
                 plt.subplot(3,1,3)
                 plt.plot(err_pf, color = 'b')
                 plt.plot(err_de, color = 'r')
