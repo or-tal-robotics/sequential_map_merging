@@ -1,11 +1,4 @@
 #!/usr/bin/env python
-
-# -*- coding: utf-8 -*-
-
-"""
-Created on Thu Sep  5 10:09:21 2019
-@author: Matan Samina
-"""
 import rospy
 import numpy as np
 from rospy_tutorials.msg import Floats # for landmarks array
@@ -25,6 +18,7 @@ from sklearn.mixture import BayesianGaussianMixture
 
 ground_trouth_origin = np.array([-12,-5.0, 0])
 ground_trouth_target = np.array([4.0, -8.0, -2.75])
+
 import rosbag
 import rospkg 
 
@@ -54,13 +48,13 @@ def get_error(T, origin, target):
 
 
 def DEMapMatcher(origin_map_nbrs, target_map):
-    DE_func = lambda x: -likelihood(rotate_map(target_map,x),origin_map_nbrs, 0.01)
+    DE_func = lambda x: -likelihood(rotate_map(target_map,x),origin_map_nbrs, 0.3)
     result = differential_evolution(DE_func, bounds = [(-15,15),(-15,15),(0,2*np.pi)] ,maxiter= 100 ,popsize=3,tol=0.0001)
     T_de = [result.x[0] , result.x[1] , min(result.x[2], 2*np.pi - result.x[2])]
     return T_de
 
 class ParticleFilterMapMatcher():
-    def __init__(self,init_origin_map_nbrs, init_target_map, Np = 2000, N_history = 10,  N_theta = 50, N_x = 20, N_y = 20, R_var = 0.01):
+    def __init__(self,init_origin_map_nbrs, init_target_map, Np = 1000, N_history = 7,  N_theta = 50, N_x = 20, N_y = 20, R_var = 0.3):
         self.Np = Np
         self.R_var = R_var
         self.N_history = N_history
@@ -130,8 +124,8 @@ class ParticleFilterMapMatcher():
         self.X_map = self.X[np.argmax(p)]
         idxs = np.random.choice(a = self.Np, size = self.Np,p = p)
         self.X = self.X[idxs]
-        self.X[:,0] = self.X[:,0] + np.random.normal(0.0, 0.2, size=self.X[:,0].shape) + np.random.choice(a = 5, size = self.X[:,0].shape,p = [0.6,0.1,0.1,0.1, 0.1] )*2.0
-        self.X[:,1] = self.X[:,1] + np.random.normal(0.0, 0.2, size=self.X[:,1].shape) + np.random.choice(a = 5, size = self.X[:,1].shape,p = [0.6,0.1,0.1,0.1, 0.1]  )*2.0
+        self.X[:,0] = self.X[:,0] + np.random.normal(0.0, 0.2, size=self.X[:,0].shape) + np.random.randint(-1,2) * np.random.choice(a = 5, size = self.X[:,0].shape,p = [0.6,0.1,0.1,0.1, 0.1] )*2.0
+        self.X[:,1] = self.X[:,1] + np.random.normal(0.0, 0.2, size=self.X[:,1].shape) + np.random.randint(-1,2) * np.random.choice(a = 5, size = self.X[:,1].shape,p = [0.6,0.1,0.1,0.1, 0.1]  )*2.0
         self.X[:,2] = self.X[:,2] + np.random.normal(0.0, 0.01, size=self.X[:,2].shape) + np.random.choice(a = 4, size = self.X[:,2].shape,p = [0.4,0.2,0.2,0.2] )*0.5*np.pi
         self.X[:,2] = np.remainder(self.X[:,2],2*np.pi)
         self.indicate = 0
