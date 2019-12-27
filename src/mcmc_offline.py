@@ -6,19 +6,44 @@ from sklearn.neighbors import NearestNeighbors # for KNN algorithm
 from scipy.optimize import differential_evolution
 import copy
 import pandas as pd
-
-ground_trouth_origin = np.array([-12,-5.0, 0])
-ground_trouth_target = np.array([4.0, -8.0, -2.75])
-
-ground_trouth_transformation = np.array([-6.94304748,  9.92673817,  3.56565882])
+from nav_msgs.msg import OccupancyGrid, MapMetaData
+from tf.transformations import quaternion_from_euler
 import rosbag
 import rospkg 
 
-
+ground_trouth_origin = np.array([-12,-5.0, 0])
+ground_trouth_target = np.array([4.0, -8.0, -2.75])
+ground_trouth_transformation = np.array([-6.94304748,  9.92673817,  3.56565882])
 rospack = rospkg.RosPack()
 packadge_path = rospack.get_path('DMM')
 file_path = packadge_path + '/maps/map5.bag'
+origin_publisher = rospy.Publisher('origin_map', OccupancyGrid) 
+target_publisher = rospy.Publisher('target_map', OccupancyGrid) 
 
+def send_map_ros_msg(landmarks, empty_landmarks, publisher, resolution = 0.01, width = 1024, height = 1024):
+    map_msg = OccupancyGrid()
+    map_msg.header.frame_id = 'map'
+    map_msg.info.resolution = resolution
+    map_msg.info.width = width
+    map_msg.info.height = height
+
+    data = -np.ones(shape = (width,height))
+    for ii in range(len(landmarks)):
+        on_x = landmarks[ii,0] // resolution + width  // 2
+        on_y = landmarks[ii,1] // resolution + height // 2
+        if on_x < width and on_x > 0 and on_y < height and on_y > 0:
+            data[int(on_x), int(on_y)] = 100
+
+    for ii in range(len(empty_landmarks)):
+        off_x = empty_landmarks[ii,0] // resolution + width  // 2
+        off_y = empty_landmarks[ii,1] // resolution + height // 2
+        if off_x < width and off_x > 0 and off_y < height and off_y > 0:
+            data[int(off_x), int(off_y)] = 0
+
+    data_out = data.reshape((-1))
+    map_msg.data = data_out
+    publisher.publish(map_msg)
+    
 def rotate_map(map, T):
     c ,s = np.cos(T[2]) , np.sin(T[2])
     R = np.array(((c,-s), (s, c))) 
@@ -41,7 +66,7 @@ def DEMapMatcher(origin_map_nbrs, target_map):
     return T_de
 
 class ParticleFilterMapMatcher():
-    def __init__(self,init_origin_map_nbrs, init_target_map, Np = 1000, N_history = 7,  N_theta = 50, N_x = 20, N_y = 20, R_var = 0.3):
+    def __init__(self,init_origin_map_nbrs, init_target_map, Np = 1000, N_history = 5,  N_theta = 50, N_x = 20, N_y = 20, R_var = 0.3):
         self.Np = Np
         self.R_var = R_var
         self.N_history = N_history
@@ -87,7 +112,7 @@ class ParticleFilterMapMatcher():
         self.indicate = 0
         print("Initilizing done with "+str(Np)+" samples out of "+str(len(temp_X)))
     def predict(self):
-        self.X[:,0:2] = self.X[:,0:2] + np.random.normal(0.0, 0.1, size=self.X[:,0:2].shape)
+        self.X[:,0:2] = self.X[:,0:2] + np.random.normal(0.0, 0.07, size=self.X[:,0:2].shape)
         self.X[:,2] = self.X[:,2] + np.random.normal(0.0, 0.1, size=self.X[:,2].shape)
         self.X[:,2] = np.remainder(self.X[:,2],2*np.pi)
 
@@ -119,31 +144,38 @@ if __name__ == '__main__':
     init, init1, init2 = 1, 1, 1
     err_pf = []
     err_de = []
+    rospy.init_node('offline_map_matcher')
     for topic, msg, t in bag.read_messages(topics=['/ABot1/map', '/ABot2/map']):
-
+        if rospy.is_shutdown():
+            break
         if topic == '/ABot1/map':
+            map1_msg = msg
             map1 = np.array(msg.data , dtype = np.float32)
             N1 = np.sqrt(map1.shape)[0].astype(np.int32)
             Re1 = np.copy(map1.reshape((N1,N1)))
             scale1 = msg.info.resolution
             landMarksArray1 = (np.argwhere( Re1 == 100 ) * scale1)
+            landMarksArray1_empty = (np.argwhere( Re1 == 0 ) * scale1)
             if init1 == 1:
                 cm1 = np.sum(np.transpose(landMarksArray1),axis=1)/len(landMarksArray1)
                 ground_trouth_origin[0:2] = ground_trouth_origin[0:2] -  cm1
             landMarksArray1 = landMarksArray1 - cm1
+            landMarksArray1_empty = landMarksArray1_empty - cm1
             nbrs = NearestNeighbors(n_neighbors= 1, algorithm='ball_tree').fit(landMarksArray1)
             init1 = 0
         if topic == '/ABot2/map':
+            map2_msg = msg
             map2 = np.array(msg.data , dtype = np.float32)
             N2 = np.sqrt(map2.shape)[0].astype(np.int32)
             Re2 = np.copy(map2.reshape((N2,N2)))
             scale2 = msg.info.resolution
             landMarksArray2 = (np.argwhere( Re2 == 100 ) * scale2)
+            landMarksArray2_empty = (np.argwhere( Re2 == 0 ) * scale2)
             if init2 == 1:
                 cm2 = np.sum(np.transpose(landMarksArray2),axis=1)/len(landMarksArray2) 
                 ground_trouth_target[0:2] = np.flip(ground_trouth_target[0:2])  -  cm2
             landMarksArray2 = landMarksArray2 - cm2
-            
+            landMarksArray2_empty = landMarksArray2_empty - cm2
             init2 = 0
         if init == 1 and init1 == 0 and init2 == 0:
             model = ParticleFilterMapMatcher(nbrs, landMarksArray2)
@@ -155,24 +187,27 @@ if __name__ == '__main__':
             X_de = DEMapMatcher(nbrs, landMarksArray2)
             if model.indicate == model.N_history:
                 model.resample()
-                map_star = rotate_map(landMarksArray2, model.X_map)
-                map_de = rotate_map(landMarksArray2, X_de)
-                plt.subplot(3,1,1)
-                plt.axis([-22, 22, -22, 22])
-                plt.scatter(map_star[: , 0] ,map_star[:,1] , color = 'b') # plot tPF map
-                plt.scatter(map_de[: , 0] ,map_de[:,1] , color = 'g')
-                plt.scatter(landMarksArray1[: , 0] ,landMarksArray1[:,1] ,color = 'r', marker=',', linewidths=0.01) # plot origin map
+                # map_star = rotate_map(landMarksArray2, model.X_map)
+                # map_de = rotate_map(landMarksArray2, X_de)
+                # plt.subplot(3,1,1)
+                # plt.axis([-22, 22, -22, 22])
+                # plt.scatter(map_star[: , 0] ,map_star[:,1] , color = 'b') # plot tPF map
+                # plt.scatter(map_de[: , 0] ,map_de[:,1] , color = 'g')
+                # plt.scatter(landMarksArray1[: , 0] ,landMarksArray1[:,1] ,color = 'r', marker=',', linewidths=0.01) # plot origin map
 
-                plt.subplot(3,1,2)
-                plt.scatter(model.X[:,0], model.X[:,1])
+                # plt.subplot(3,1,2)
+                # plt.scatter(model.X[:,0], model.X[:,1])
 
-                err_pf.append(get_error(model.X_map))
-                err_de.append(get_error(X_de ))
-                plt.subplot(3,1,3)
-                plt.plot(err_pf, color = 'b')
-                plt.plot(err_de, color = 'r')
-                plt.pause(0.05)
-                plt.clf()
+                # err_pf.append(get_error(model.X_map))
+                # err_de.append(get_error(X_de ))
+                # plt.subplot(3,1,3)
+                # plt.plot(err_pf, color = 'b')
+                # plt.plot(err_de, color = 'r')
+                # plt.pause(0.05)
+                # plt.clf()
+
+                send_map_ros_msg(landMarksArray1, landMarksArray1_empty, origin_publisher, resolution=scale1)
+                send_map_ros_msg(rotate_map(landMarksArray2, model.X_map),rotate_map(landMarksArray2_empty, model.X_map) , target_publisher, resolution=scale2)
     raw_input("Press Enter to continue...")
 
     

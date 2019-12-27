@@ -13,6 +13,8 @@ ground_trouth_transformation = np.array([-6.94304748,  9.92673817,  3.56565882])
 rospack = rospkg.RosPack()
 packadge_path = rospack.get_path('DMM')
 file_path = packadge_path + '/maps/map5.bag'
+stat_path_de =  packadge_path + '/statistics/MonteCarloStatistics_de.csv'
+stat_path_pf =  packadge_path + '/statistics/MonteCarloStatistics_pf.csv'
 monte_carlo_runs = 100
 
 def rotate_map(map, T):
@@ -97,7 +99,7 @@ class ParticleFilterMapMatcher():
         self.indicate += 1
         p = np.dot(self.W, self.filter)
     def resample(self):
-        print("performing resample!")
+        #print("performing resample!")
         p = np.dot(self.W, self.filter)
         p = p/np.sum(p)
         self.X_map = self.X[np.argmax(p)]
@@ -112,7 +114,9 @@ class ParticleFilterMapMatcher():
    
 if __name__ == '__main__':
     bag = rosbag.Bag(file_path)
-    stat = []
+    rospy.init_node('offline_map_matcher_monte_carlo_tester')
+    pf_stat = []
+    de_stat = []
     for r in range(monte_carlo_runs):
         init, init1, init2 = 1, 1, 1
         err_pf = []
@@ -170,9 +174,26 @@ if __name__ == '__main__':
                     # plt.pause(0.05)
                     # plt.clf()
                     print("Monte Carlo run: "+str(r)+", step: "+str(len(err_pf)))
-        stat.append([err_pf, err_de])
+
+        pf_stat.append(err_pf)
+        de_stat.append(err_de)
+        if rospy.is_shutdown():
+            print("User force exit, saving data...")
+            pf_data = np.array(pf_stat)
+            de_data = np.array(de_stat)
+            pf_data = np.squeeze(pf_data)
+            de_data = np.squeeze(de_data)
+            np.savetxt(stat_path_pf, pf_data, delimiter=",")
+            np.savetxt(stat_path_de, de_data, delimiter=",")
+            raw_input("Done saving, press Enter to continue...")
+            
     print("Done Simulation, saving data...")
-    pd.DataFrame(np.array(stat)).to_csv("MonteCarloStatistics.csv", header=None, index=None)
+    pf_data = np.array(pf_stat)
+    de_data = np.array(de_stat)
+    pf_data = np.squeeze(pf_data)
+    de_data = np.squeeze(de_data)
+    np.savetxt(stat_path_pf, pf_data, delimiter=",")
+    np.savetxt(stat_path_de, de_data, delimiter=",")
     raw_input("Done saving, press Enter to continue...")
 
     
