@@ -13,9 +13,9 @@ ground_trouth_transformation = np.array([-6.94304748,  9.92673817,  3.56565882])
 rospack = rospkg.RosPack()
 packadge_path = rospack.get_path('DMM')
 file_path = packadge_path + '/maps/map5.bag'
-stat_path_de =  packadge_path + '/statistics/MonteCarloStatistics_de.csv'
-stat_path_pf =  packadge_path + '/statistics/MonteCarloStatistics_pf.csv'
-monte_carlo_runs = 100
+stat_path_de =  packadge_path + '/statistics/MonteCarloStatistics_de_2.csv'
+stat_path_pf =  packadge_path + '/statistics/MonteCarloStatistics_pf_2.csv'
+monte_carlo_runs = 50
 
 def rotate_map(map, T):
     c ,s = np.cos(T[2]) , np.sin(T[2])
@@ -34,12 +34,12 @@ def get_error(T):
 
 def DEMapMatcher(origin_map_nbrs, target_map):
     DE_func = lambda x: -likelihood(rotate_map(target_map,x),origin_map_nbrs, 0.3)
-    result = differential_evolution(DE_func, bounds = [(-15,15),(-15,15),(0,2*np.pi)] ,maxiter= 100 ,popsize=3,tol=0.0001)
+    result = differential_evolution(DE_func, bounds = [(-15,15),(-15,15),(0,2*np.pi)] ,maxiter= 100 ,popsize=6,tol=0.0001)
     T_de = [result.x[0] , result.x[1] , min(result.x[2], 2*np.pi - result.x[2])]
     return T_de
 
 class ParticleFilterMapMatcher():
-    def __init__(self,init_origin_map_nbrs, init_target_map, Np = 1000, N_history = 7,  N_theta = 50, N_x = 20, N_y = 20, R_var = 0.3):
+    def __init__(self,init_origin_map_nbrs, init_target_map, Np = 5000, N_history = 5,  N_theta = 50, N_x = 20, N_y = 20, R_var = 0.3):
         self.Np = Np
         self.R_var = R_var
         self.N_history = N_history
@@ -96,6 +96,8 @@ class ParticleFilterMapMatcher():
                 self.W[i, self.indicate] = self.W[i, self.indicate - 1] * likelihood(tempMap, origin_map_nbrs, self.R_var)
             else:
                 self.W[i, self.indicate] = likelihood(tempMap, origin_map_nbrs, self.R_var)
+            if rospy.is_shutdown():
+                break
         self.indicate += 1
         p = np.dot(self.W, self.filter)
     def resample(self):
