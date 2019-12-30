@@ -10,11 +10,12 @@ import rosbag
 import rospkg 
 
 ground_trouth_transformation = np.array([-6.94304748,  9.92673817,  3.56565882])
+ground_trouth_transformation_map7 = np.array([-0.10729044,  4.94486143,  1.82609867])
 rospack = rospkg.RosPack()
 packadge_path = rospack.get_path('DMM')
-file_path = packadge_path + '/maps/map5.bag'
-stat_path_de =  packadge_path + '/statistics/MonteCarloStatistics_de_2.csv'
-stat_path_pf =  packadge_path + '/statistics/MonteCarloStatistics_pf_2.csv'
+file_path = packadge_path + '/maps/map7.bag'
+stat_path_de =  packadge_path + '/statistics/MonteCarloStatistics_de_3.csv'
+stat_path_pf =  packadge_path + '/statistics/MonteCarloStatistics_pf_3.csv'
 monte_carlo_runs = 50
 
 def rotate_map(map, T):
@@ -29,7 +30,7 @@ def likelihood(target_map_rotated, origin_map_nbrs, var):
     return p
 
 def get_error(T): 
-    return  np.linalg.norm(T - ground_trouth_transformation)
+    return  np.linalg.norm(T - ground_trouth_transformation_map7)
 
 
 def DEMapMatcher(origin_map_nbrs, target_map):
@@ -39,7 +40,7 @@ def DEMapMatcher(origin_map_nbrs, target_map):
     return T_de
 
 class ParticleFilterMapMatcher():
-    def __init__(self,init_origin_map_nbrs, init_target_map, Np = 5000, N_history = 5,  N_theta = 50, N_x = 20, N_y = 20, R_var = 0.3):
+    def __init__(self,init_origin_map_nbrs, init_target_map, Np = 5000, N_history = 7,  N_theta = 50, N_x = 20, N_y = 20, R_var = 0.03):
         self.Np = Np
         self.R_var = R_var
         self.N_history = N_history
@@ -126,31 +127,45 @@ if __name__ == '__main__':
         for topic, msg, t in bag.read_messages(topics=['/ABot1/map', '/ABot2/map']):
 
             if topic == '/ABot1/map':
+                map1_msg = msg
                 map1 = np.array(msg.data , dtype = np.float32)
                 N1 = np.sqrt(map1.shape)[0].astype(np.int32)
                 Re1 = np.copy(map1.reshape((N1,N1)))
                 scale1 = msg.info.resolution
                 landMarksArray1 = (np.argwhere( Re1 == 100 ) * scale1)
-                if init1 == 1:
-                    cm1 = np.sum(np.transpose(landMarksArray1),axis=1)/len(landMarksArray1)
-                landMarksArray1 = landMarksArray1 - cm1
-                nbrs = NearestNeighbors(n_neighbors= 1, algorithm='ball_tree').fit(landMarksArray1)
-                init1 = 0
+                landMarksArray1_empty = (np.argwhere( Re1 == 0 ) * scale1)
+                if landMarksArray1.shape[0] != 0:
+                    if init1 == 1:
+                        cm1 = np.sum(np.transpose(landMarksArray1),axis=1)/len(landMarksArray1)
+                    landMarksArray1 = landMarksArray1 - cm1
+                    landMarksArray1_empty = landMarksArray1_empty - cm1
+                    landMarksArray1_rc = landMarksArray1[np.random.choice(a = len(landMarksArray1), size = len(landMarksArray1)//2)]
+                    nbrs = NearestNeighbors(n_neighbors= 1, algorithm='ball_tree').fit(landMarksArray1_rc)
+                    init1 = 0
+                else:
+                    continue
+
             if topic == '/ABot2/map':
+                map2_msg = msg
                 map2 = np.array(msg.data , dtype = np.float32)
                 N2 = np.sqrt(map2.shape)[0].astype(np.int32)
                 Re2 = np.copy(map2.reshape((N2,N2)))
                 scale2 = msg.info.resolution
                 landMarksArray2 = (np.argwhere( Re2 == 100 ) * scale2)
-                if init2 == 1:
-                    cm2 = np.sum(np.transpose(landMarksArray2),axis=1)/len(landMarksArray2) 
-                landMarksArray2 = landMarksArray2 - cm2
-                
-                init2 = 0
+                landMarksArray2_empty = (np.argwhere( Re2 == 0 ) * scale2)
+                if landMarksArray2.shape[0] != 0:
+                    if init2 == 1:
+                        cm2 = np.sum(np.transpose(landMarksArray2),axis=1)/len(landMarksArray2) 
+                    landMarksArray2 = landMarksArray2 - cm2
+                    landMarksArray2_empty = landMarksArray2_empty - cm2
+                    init2 = 0
+                else:
+                    continue
+
             if init == 1 and init1 == 0 and init2 == 0:
                 model = ParticleFilterMapMatcher(nbrs, landMarksArray2)
-                
                 init = 0
+
             elif init == 0 and init1 == 0 and init2 == 0:
                 model.predict()
                 model.update(landMarksArray2, nbrs)
@@ -176,6 +191,8 @@ if __name__ == '__main__':
                     # plt.pause(0.05)
                     # plt.clf()
                     print("Monte Carlo run: "+str(r)+", step: "+str(len(err_pf)))
+                    print("PF error: "+str(get_error(model.X_map))+" , DE error: "+str(get_error(X_de)))
+                    print("-------------------------------------")
 
         pf_stat.append(err_pf)
         de_stat.append(err_de)

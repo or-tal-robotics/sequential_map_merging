@@ -20,7 +20,7 @@ obstacles_laser:
     laser: {sensor_frame: ABot1/base_laser, data_type: LaserScan, clearing: true, marking: true, topic: ABot1/scan, inf_is_valid: true}
 
 inflation:
-    inflation_radius: 0.342
+    inflation_radius: 0.2
 
 
 inflation_global:

@@ -3,7 +3,7 @@
 
 <!-- Launch robot -->
 <include file="$(find DMM)/launch/empty_world.launch" >
-  <arg name="world_name" value="$(find DMM)/worlds/maze_rooms/model.sdf"/>
+  <arg name="world_name" value="$(find DMM)/worlds/maze_world2/model.sdf"/>
 </include>
 
 
@@ -19,7 +19,7 @@
   </node>
 <param name="/ABot1/robot_description" command="$(find xacro)/xacro '$(find DMM)/urdf/ABot.urdf.xacro'" />
   <!-- push ABot_description to factory and spawn robot in gazebo -->
-  <node name="spawn_ABot" pkg="gazebo_ros" type="spawn_model" args=" -x -8 -y -11.5 -Y 0.0 -urdf -model ABot1 -param /ABot1/robot_description" respawn="false" output="screen" />
+  <node name="spawn_ABot" pkg="gazebo_ros" type="spawn_model" args=" -x -6.5 -y -6.5 -Y 2.88 -urdf -model ABot1 -param /ABot1/robot_description" respawn="false" output="screen" />
 
 
 <node pkg="hector_mapping" type="hector_mapping" name="hector_mapping" output="screen">
@@ -91,7 +91,7 @@
   </node>
 <param name="/ABot2/robot_description" command="$(find xacro)/xacro '$(find DMM)/urdf/ABot.urdf.xacro'" />
   <!-- push ABot_description to factory and spawn robot in gazebo -->
-  <node name="spawn_ABot" pkg="gazebo_ros" type="spawn_model" args=" -x 9 -y -2 -Y 1.5707 -urdf -model ABot2 -param /ABot2/robot_description" respawn="false" output="screen" />
+  <node name="spawn_ABot" pkg="gazebo_ros" type="spawn_model" args=" -x -15 -y -1.5 -Y -1.5707 -urdf -model ABot2 -param /ABot2/robot_description" respawn="false" output="screen" />
 
 
 <node pkg="hector_mapping" type="hector_mapping" name="hector_mapping" output="screen">
