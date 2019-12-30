@@ -19,8 +19,9 @@ ground_trouth_transformation_map7 = np.array([-0.10729044,  4.94486143,  1.82609
 
 rospack = rospkg.RosPack()
 packadge_path = rospack.get_path('DMM')
-file_path = packadge_path + '/maps/map7.bag'
+file_path = packadge_path + '/maps/map8.bag'
 origin_publisher = rospy.Publisher('origin_map', OccupancyGrid, queue_size = 10) 
+global_publisher = rospy.Publisher('global_map', OccupancyGrid, queue_size = 10) 
 target_publisher = rospy.Publisher('target_map', OccupancyGrid, queue_size = 10) 
 
 def send_map_ros_msg(landmarks, empty_landmarks, publisher, resolution = 0.01, width = 2048, height = 2048):
@@ -62,22 +63,26 @@ def get_error(T):
     return  np.linalg.norm(T - ground_trouth_transformation_map7)
 
 
-def DEMapMatcher(origin_map_nbrs, target_map):
+def DEMapMatcher(origin_map_nbrs, target_map, last_result = None):
     DE_func = lambda x: -likelihood(rotate_map(target_map,x),origin_map_nbrs, 0.3)
-    result = differential_evolution(DE_func, bounds = [(-15,15),(-15,15),(0,2*np.pi)] ,maxiter= 100 ,popsize=3,tol=0.0001)
-    T_de = [result.x[0] , result.x[1] , min(result.x[2], 2*np.pi - result.x[2])]
+    if last_result is None:
+        result = differential_evolution(DE_func, bounds = [(-15,15),(-15,15),(0,2*np.pi)] ,maxiter= 100 ,popsize=3,tol=0.0001)
+        T_de = [result.x[0] , result.x[1] , min(result.x[2], 2*np.pi - result.x[2])]
+    else:
+        result = differential_evolution(DE_func, bounds = [(last_result[0]-10,last_result[0]+10),(last_result[1]-10,last_result[1]+10),(last_result[2]-0.5*np.pi,last_result[2]+0.5*np.pi)] ,maxiter= 100 ,popsize=3,tol=0.0001)
+        T_de = [result.x[0] , result.x[1] , min(result.x[2], 2*np.pi - result.x[2])]
     return T_de
 
 class ParticleFilterMapMatcher():
-    def __init__(self,init_origin_map_nbrs, init_target_map, Np = 1000, N_history = 7,  N_theta = 50, N_x = 20, N_y = 20, R_var = 0.03):
+    def __init__(self,init_origin_map_nbrs, init_target_map, Np = 1500, N_history = 10,  N_theta = 50, N_x = 20, N_y = 20, R_var = 0.01):
         self.Np = Np
         self.R_var = R_var
         self.N_history = N_history
         self.filter = np.arange(3,N_history+3,dtype=np.float32)
         temp_X = []
         angles = np.linspace(0 , 2*np.pi ,N_theta )
-        xRange = np.linspace(-15 , 15 , N_x) 
-        yRange = np.linspace(-15 , 15 ,N_y) 
+        xRange = np.linspace(-10 , 10 , N_x) 
+        yRange = np.linspace(-10 , 10 ,N_y) 
         x0 = [xRange[np.random.randint(N_x)] ,yRange[np.random.randint(N_y)], angles[np.random.randint(N_theta)]]
         tempMap = rotate_map(init_target_map, x0)
         w0 = likelihood(tempMap, init_origin_map_nbrs, self.R_var)
@@ -164,7 +169,7 @@ if __name__ == '__main__':
                     cm1 = np.sum(np.transpose(landMarksArray1),axis=1)/len(landMarksArray1)
                 landMarksArray1 = landMarksArray1 - cm1
                 landMarksArray1_empty = landMarksArray1_empty - cm1
-                landMarksArray1_rc = landMarksArray1[np.random.choice(a = len(landMarksArray1), size = len(landMarksArray1)//2)]
+                landMarksArray1_rc = landMarksArray1[np.random.choice(a = len(landMarksArray1), size = len(landMarksArray1)//1)]
                 
                 nbrs = NearestNeighbors(n_neighbors= 1, algorithm='ball_tree').fit(landMarksArray1_rc)
                 init1 = 0
@@ -189,12 +194,12 @@ if __name__ == '__main__':
                 continue
         if init == 1 and init1 == 0 and init2 == 0:
             model = ParticleFilterMapMatcher(nbrs, landMarksArray2)
-            
+            X_de = DEMapMatcher(nbrs, landMarksArray2)
             init = 0
         elif init == 0 and init1 == 0 and init2 == 0:
             model.predict()
             model.update(landMarksArray2, nbrs)
-            X_de = DEMapMatcher(nbrs, landMarksArray2)
+            X_de = DEMapMatcher(nbrs, landMarksArray2, X_de)
             if model.indicate == model.N_history:
                 model.resample()
                 # map_star = rotate_map(landMarksArray2, model.X_map)
@@ -216,8 +221,13 @@ if __name__ == '__main__':
                 # plt.pause(0.05)
                 # plt.clf()
                 print(model.X_map)
+                rotated_map = rotate_map(landMarksArray2, model.X_map)
+                rotated_empty_map = rotate_map(landMarksArray2_empty, model.X_map)
+                estimated_global_map = np.concatenate([landMarksArray1,rotated_map], axis=0)
+                estimated_global_empty_map = np.concatenate([landMarksArray1_empty,rotated_empty_map], axis=0)
+                send_map_ros_msg(estimated_global_map, estimated_global_empty_map, global_publisher, resolution=scale1)
                 send_map_ros_msg(landMarksArray1, landMarksArray1_empty, origin_publisher, resolution=scale1)
-                send_map_ros_msg(rotate_map(landMarksArray2, model.X_map),rotate_map(landMarksArray2_empty, model.X_map) , target_publisher, resolution=scale2)
+                send_map_ros_msg(landMarksArray2,landMarksArray2_empty , target_publisher, resolution=scale2)
     raw_input("Press Enter to continue...")
 
     
