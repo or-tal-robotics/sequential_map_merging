@@ -59,7 +59,7 @@ def likelihood(target_map_rotated, origin_map_nbrs, var):
     return p
 
 def get_error(T): 
-    return  np.linalg.norm(T - ground_trouth_transformation)
+    return  np.linalg.norm(T - ground_trouth_transformation_map7)
 
 
 def DEMapMatcher(origin_map_nbrs, target_map):
@@ -162,7 +162,6 @@ if __name__ == '__main__':
             if landMarksArray1.shape[0] != 0:
                 if init1 == 1:
                     cm1 = np.sum(np.transpose(landMarksArray1),axis=1)/len(landMarksArray1)
-                    ground_trouth_origin[0:2] = ground_trouth_origin[0:2] -  cm1
                 landMarksArray1 = landMarksArray1 - cm1
                 landMarksArray1_empty = landMarksArray1_empty - cm1
                 landMarksArray1_rc = landMarksArray1[np.random.choice(a = len(landMarksArray1), size = len(landMarksArray1)//2)]
@@ -183,7 +182,6 @@ if __name__ == '__main__':
             if landMarksArray2.shape[0] != 0:
                 if init2 == 1:
                     cm2 = np.sum(np.transpose(landMarksArray2),axis=1)/len(landMarksArray2) 
-                    ground_trouth_target[0:2] = np.flip(ground_trouth_target[0:2])  -  cm2
                 landMarksArray2 = landMarksArray2 - cm2
                 landMarksArray2_empty = landMarksArray2_empty - cm2
                 init2 = 0
