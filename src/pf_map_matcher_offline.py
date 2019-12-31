@@ -11,9 +11,11 @@ import rospkg
 
 ground_trouth_transformation = np.array([-6.94304748,  9.92673817,  3.56565882])
 ground_trouth_transformation_map7 = np.array([-0.10729044,  4.94486143,  1.82609867])
+ground_trouth_transformation_map5 = np.array([-6.94304748,  9.92673817,  3.56565882])
+
 rospack = rospkg.RosPack()
 packadge_path = rospack.get_path('DMM')
-file_path = packadge_path + '/maps/map7.bag'
+file_path = packadge_path + '/maps/map5.bag'
 stat_path_de =  packadge_path + '/statistics/MonteCarloStatistics_de_3.csv'
 stat_path_pf =  packadge_path + '/statistics/MonteCarloStatistics_pf_3.csv'
 monte_carlo_runs = 50
@@ -30,17 +32,21 @@ def likelihood(target_map_rotated, origin_map_nbrs, var):
     return p
 
 def get_error(T): 
-    return  np.linalg.norm(T - ground_trouth_transformation_map7)
+    return  np.linalg.norm(T - ground_trouth_transformation_map5)
 
 
-def DEMapMatcher(origin_map_nbrs, target_map):
-    DE_func = lambda x: -likelihood(rotate_map(target_map,x),origin_map_nbrs, 0.3)
-    result = differential_evolution(DE_func, bounds = [(-15,15),(-15,15),(0,2*np.pi)] ,maxiter= 1000 ,popsize=6,tol=0.0001)
-    T_de = [result.x[0] , result.x[1] , min(result.x[2], 2*np.pi - result.x[2])]
+def DEMapMatcher(origin_map_nbrs, target_map, last_result = None):
+    DE_func = lambda x: -likelihood(rotate_map(target_map,x),origin_map_nbrs, 0.03)
+    if last_result is None:
+        result = differential_evolution(DE_func, bounds = [(-15,15),(-15,15),(0,2*np.pi)] ,maxiter= 1000 ,popsize=6,tol=0.0001)
+        T_de = [result.x[0] , result.x[1] , min(result.x[2], 2*np.pi - result.x[2])]
+    else:
+        result = differential_evolution(DE_func, bounds = [(last_result[0]-10,last_result[0]+10),(last_result[1]-10,last_result[1]+10),(last_result[2]-np.pi,last_result[2]+np.pi)] ,maxiter= 1000 ,popsize=6,tol=0.0001)
+        T_de = [result.x[0] , result.x[1] , min(result.x[2], 2*np.pi - result.x[2])]
     return T_de
 
 class ParticleFilterMapMatcher():
-    def __init__(self,init_origin_map_nbrs, init_target_map, Np = 5000, N_history = 7,  N_theta = 50, N_x = 20, N_y = 20, R_var = 0.03):
+    def __init__(self,init_origin_map_nbrs, init_target_map, Np = 10, N_history = 7,  N_theta = 50, N_x = 20, N_y = 20, R_var = 0.03):
         self.Np = Np
         self.R_var = R_var
         self.N_history = N_history
@@ -164,12 +170,13 @@ if __name__ == '__main__':
 
             if init == 1 and init1 == 0 and init2 == 0:
                 model = ParticleFilterMapMatcher(nbrs, landMarksArray2)
+                X_de = DEMapMatcher(nbrs, landMarksArray2)
                 init = 0
 
             elif init == 0 and init1 == 0 and init2 == 0:
                 model.predict()
                 model.update(landMarksArray2, nbrs)
-                X_de = DEMapMatcher(nbrs, landMarksArray2)
+                X_de = DEMapMatcher(nbrs, landMarksArray2, X_de)
                 if model.indicate == model.N_history:
                     model.resample()
                     # map_star = rotate_map(landMarksArray2, model.X_map)
@@ -205,6 +212,7 @@ if __name__ == '__main__':
             np.savetxt(stat_path_pf, pf_data, delimiter=",")
             np.savetxt(stat_path_de, de_data, delimiter=",")
             raw_input("Done saving, press Enter to continue...")
+            break
             
     print("Done Simulation, saving data...")
     pf_data = np.array(pf_stat)
