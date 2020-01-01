@@ -1,5 +1,5 @@
 footprint: [[0.2, 0.2], [-0.2, 0.2], [-0.2, -0.2], [0.2, -0.2], [0.3, 0]]
-footprint_padding: 0.026
+footprint_padding: 0.226
 
 robot_base_frame: ABot2/base_link
 update_frequency: 1.0
