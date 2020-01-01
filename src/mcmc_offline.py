@@ -19,7 +19,7 @@ ground_trouth_transformation_map7 = np.array([-0.10729044,  4.94486143,  1.82609
 
 rospack = rospkg.RosPack()
 packadge_path = rospack.get_path('DMM')
-file_path = packadge_path + '/maps/map8.bag'
+file_path = packadge_path + '/maps/map10.bag'
 origin_publisher = rospy.Publisher('origin_map', OccupancyGrid, queue_size = 10) 
 global_publisher = rospy.Publisher('global_map', OccupancyGrid, queue_size = 10) 
 target_publisher = rospy.Publisher('target_map', OccupancyGrid, queue_size = 10) 
@@ -56,7 +56,7 @@ def rotate_map(map, T):
 
 def likelihood(target_map_rotated, origin_map_nbrs, var):
     d, _ = origin_map_nbrs.kneighbors(target_map_rotated)
-    p = np.sum((1/(np.sqrt(2*np.pi*var)))*np.exp(-np.power(d,2)/(2*var))) + 1e-100
+    p = np.mean((1/(np.sqrt(2*np.pi*var)))*np.exp(-np.power(d,2)/(2*var))) + 1e-200
     return p
 
 def get_error(T): 
@@ -74,7 +74,7 @@ def DEMapMatcher(origin_map_nbrs, target_map, last_result = None):
     return T_de
 
 class ParticleFilterMapMatcher():
-    def __init__(self,init_origin_map_nbrs, init_target_map, Np = 1500, N_history = 10,  N_theta = 50, N_x = 20, N_y = 20, R_var = 0.01):
+    def __init__(self,init_origin_map_nbrs, init_target_map, Np = 1000, N_history = 5,  N_theta = 50, N_x = 20, N_y = 20, R_var = 0.1):
         self.Np = Np
         self.R_var = R_var
         self.N_history = N_history
@@ -121,7 +121,7 @@ class ParticleFilterMapMatcher():
         print("Initilizing done with "+str(Np)+" samples out of "+str(len(temp_X)))
     def predict(self):
         self.X[:,0:2] = self.X[:,0:2] + np.random.normal(0.0, 0.07, size=self.X[:,0:2].shape)
-        self.X[:,2] = self.X[:,2] + np.random.normal(0.0, 0.1, size=self.X[:,2].shape)
+        self.X[:,2] = self.X[:,2] + np.random.normal(0.0, 0.15, size=self.X[:,2].shape)
         self.X[:,2] = np.remainder(self.X[:,2],2*np.pi)
 
     def update(self, target_map, origin_map_nbrs):
@@ -140,8 +140,8 @@ class ParticleFilterMapMatcher():
         self.X_map = self.X[np.argmax(p)]
         idxs = np.random.choice(a = self.Np, size = self.Np,p = p)
         self.X = self.X[idxs]
-        self.X[:,0] = self.X[:,0] + np.random.normal(0.0, 0.2, size=self.X[:,0].shape) + np.random.randint(-1,2) * np.random.choice(a = 5, size = self.X[:,0].shape,p = [0.6,0.1,0.1,0.1, 0.1] )*2.0
-        self.X[:,1] = self.X[:,1] + np.random.normal(0.0, 0.2, size=self.X[:,1].shape) + np.random.randint(-1,2) * np.random.choice(a = 5, size = self.X[:,1].shape,p = [0.6,0.1,0.1,0.1, 0.1]  )*2.0
+        self.X[:,0] = self.X[:,0] + np.random.normal(0.0, 0.1, size=self.X[:,0].shape) + np.random.randint(-1,2) * np.random.choice(a = 5, size = self.X[:,0].shape,p = [0.6,0.1,0.1,0.1, 0.1] )*1.0
+        self.X[:,1] = self.X[:,1] + np.random.normal(0.0, 0.1, size=self.X[:,1].shape) + np.random.randint(-1,2) * np.random.choice(a = 5, size = self.X[:,1].shape,p = [0.6,0.1,0.1,0.1, 0.1]  )*1.0
         self.X[:,2] = self.X[:,2] + np.random.normal(0.0, 0.01, size=self.X[:,2].shape) + np.random.choice(a = 4, size = self.X[:,2].shape,p = [0.4,0.2,0.2,0.2] )*0.5*np.pi
         self.X[:,2] = np.remainder(self.X[:,2],2*np.pi)
         self.indicate = 0
@@ -169,8 +169,12 @@ if __name__ == '__main__':
                     cm1 = np.sum(np.transpose(landMarksArray1),axis=1)/len(landMarksArray1)
                 landMarksArray1 = landMarksArray1 - cm1
                 landMarksArray1_empty = landMarksArray1_empty - cm1
-                landMarksArray1_rc = landMarksArray1[np.random.choice(a = len(landMarksArray1), size = len(landMarksArray1)//1)]
-                
+                #landMarksArray1_rc = landMarksArray1[np.random.choice(a = len(landMarksArray1), size = len(landMarksArray1)//1)]
+                if len(landMarksArray1) > 500:
+                    a = len(landMarksArray1)//500
+                else:
+                    a = 1
+                landMarksArray1_rc = landMarksArray1[np.arange(0,len(landMarksArray1),a)]
                 nbrs = NearestNeighbors(n_neighbors= 1, algorithm='ball_tree').fit(landMarksArray1_rc)
                 init1 = 0
             else:
