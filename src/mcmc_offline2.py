@@ -18,6 +18,11 @@ ground_trouth_transformation_map6 = np.array([4.34298586,  11.52861869,  1.58713
 ground_trouth_transformation_map7 = np.array([-0.10729044,  4.94486143,  1.82609867])
 ground_trouth_transformation_map9 = np.array([-8.13543295,  8.9289462,   1.83688384])
 ground_trouth_transformation_map10 = np.array([ 1.33004618, 20.3074673,   1.83614012])
+ground_trouth_transformation_map11 = np.array([5.24621998, 7.41091718, 3.16565656])
+
+
+
+
 
 
 
@@ -25,7 +30,7 @@ ground_trouth_transformation_map10 = np.array([ 1.33004618, 20.3074673,   1.8361
 
 rospack = rospkg.RosPack()
 packadge_path = rospack.get_path('DMM')
-file_path = packadge_path + '/maps/map10.bag'
+file_path = packadge_path + '/maps/map3_v2.bag'
 origin_publisher = rospy.Publisher('origin_map', OccupancyGrid, queue_size = 10) 
 global_publisher = rospy.Publisher('global_map', OccupancyGrid, queue_size = 10) 
 target_publisher = rospy.Publisher('target_map', OccupancyGrid, queue_size = 10) 

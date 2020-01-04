@@ -3,7 +3,7 @@
 
 <!-- Launch robot -->
 <include file="$(find DMM)/launch/empty_world.launch" >
-  <arg name="world_name" value="$(find DMM)/worlds/tri_world/model.sdf"/>
+  <arg name="world_name" value="$(find DMM)/worlds/map5_world/model.world"/>
 </include>
 
 
@@ -19,7 +19,7 @@
   </node>
 <param name="/ABot1/robot_description" command="$(find xacro)/xacro '$(find DMM)/urdf/ABot.urdf.xacro'" />
   <!-- push ABot_description to factory and spawn robot in gazebo -->
-  <node name="spawn_ABot" pkg="gazebo_ros" type="spawn_model" args=" -x 16.2 -y -16.5 -Y 2.88 -urdf -model ABot1 -param /ABot1/robot_description" respawn="false" output="screen" />
+  <node name="spawn_ABot" pkg="gazebo_ros" type="spawn_model" args=" -x 1.2 -y -7.0 -Y 0.0 -urdf -model ABot1 -param /ABot1/robot_description" respawn="false" output="screen" />
 
 
 <node pkg="hector_mapping" type="hector_mapping" name="hector_mapping" output="screen">
@@ -39,7 +39,7 @@
 <param name="advertise_map_service" value="true"/>
 
 <!-- Map size / start point -->
-<param name="map_resolution" value="0.1"/>
+<param name="map_resolution" value="0.05"/>
 <param name="map_size" value="2048"/>
 <param name="map_start_x" value="0.5"/>
 <param name="map_start_y" value="0.5" />
@@ -91,7 +91,7 @@
   </node>
 <param name="/ABot2/robot_description" command="$(find xacro)/xacro '$(find DMM)/urdf/ABot.urdf.xacro'" />
   <!-- push ABot_description to factory and spawn robot in gazebo -->
-  <node name="spawn_ABot" pkg="gazebo_ros" type="spawn_model" args=" -x -9.6 -y -15.5 -Y -1.5707 -urdf -model ABot2 -param /ABot2/robot_description" respawn="false" output="screen" />
+  <node name="spawn_ABot" pkg="gazebo_ros" type="spawn_model" args=" -x 9 -y -2 -Y 1.5707 -urdf -model ABot2 -param /ABot2/robot_description" respawn="false" output="screen" />
 
 
 <node pkg="hector_mapping" type="hector_mapping" name="hector_mapping" output="screen">
@@ -111,7 +111,7 @@
 <param name="advertise_map_service" value="true"/>
 
 <!-- Map size / start point -->
-<param name="map_resolution" value="0.1"/>
+<param name="map_resolution" value="0.05"/>
 <param name="map_size" value="2048"/>
 <param name="map_start_x" value="0.5"/>
 <param name="map_start_y" value="0.5" />

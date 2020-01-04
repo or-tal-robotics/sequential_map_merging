@@ -14,28 +14,38 @@ ground_trouth_transformation = np.array([-6.94304748,  9.92673817,  3.56565882])
 ground_trouth_transformation_map7 = np.array([-0.10729044,  4.94486143,  1.82609867])
 ground_trouth_transformation_map5 = np.array([-6.94304748,  9.92673817,  3.56565882])
 ground_trouth_transformation_map10 = np.array([ 0.533004618, 20.78074673,   1.83614012])
+ground_trouth_transformation_map3_v2 = np.array([5.24621998, 7.41091718, 3.16565656])
 rospack = rospkg.RosPack()
 packadge_path = rospack.get_path('DMM')
-file_path = packadge_path + '/maps/map10.bag'
-stat_path_de =  packadge_path + '/statistics/csv/MonteCarloStatistics_de_map10.csv'
-stat_path_pf =  packadge_path + '/statistics/csv/MonteCarloStatistics_pf_map10.csv'
+file_path = packadge_path + '/maps/map10v2.bag'
+stat_path_de =  packadge_path + '/statistics/csv/MonteCarloStatistics_de_map10v2_kidneped.csv'
+stat_path_pf =  packadge_path + '/statistics/csv/MonteCarloStatistics_pf_map10v2_kidneped.csv'
 monte_carlo_runs = 50
 
-def get_error(T): 
-    return  np.linalg.norm(T - ground_trouth_transformation_map10)
+def save_data(file_path, data):               
+        df = pd.DataFrame([data])
+        df.to_csv(file_path, mode='a', sep='\t', header=False)
+
+def get_error(T, ground_trouth): 
+    return  np.linalg.norm(T - ground_trouth)
 
 
    
 if __name__ == '__main__':
     bag = rosbag.Bag(file_path)
-    rospy.init_node('offline_map_matcher_monte_carlo_tester')
+    rospy.init_node('offline_map_matcher_monte_carlo_tester_kidneped')
     pf_stat = []
     de_stat = []
     for r in range(monte_carlo_runs):
         init, init1, init2 = 1, 1, 1
         err_pf = []
         err_de = []
+        iter = 0
         for topic, msg, t in bag.read_messages(topics=['/ABot1/map', '/ABot2/map']):
+            if rospy.is_shutdown():
+                print("Shutting down...")
+                exit(0)
+
             if topic == '/ABot1/map':
                 map1_msg = msg
                 map1 = np.array(msg.data , dtype = np.float32)
@@ -98,38 +108,26 @@ if __name__ == '__main__':
                     # plt.subplot(3,1,2)
                     # plt.scatter(model.X[:,0], model.X[:,1])
 
-                    err_pf.append(get_error(model.X_map))
-                    err_de.append(get_error(X_de ))
+                    err_pf.append(get_error(model.X_map, ground_trouth_transformation_map5))
+                    err_de.append(get_error(X_de, ground_trouth_transformation_map5))
                     # plt.subplot(3,1,3)
                     # plt.plot(err_pf, color = 'b')
                     # plt.plot(err_de, color = 'r')
                     # plt.pause(0.05)
                     # plt.clf()
-                    print("Monte Carlo run: "+str(r)+", step: "+str(len(err_pf)))
-                    print("PF error: "+str(get_error(model.X_map))+" , DE error: "+str(get_error(X_de)))
+                    print("Monte Carlo run: "+str(r)+", step: "+str(iter))
+                    print("PF error: "+str(err_pf[iter])+" , DE error: "+str(err_de[iter]))
                     print("-------------------------------------")
-
-        pf_stat.append(err_pf)
-        de_stat.append(err_de)
-        if rospy.is_shutdown():
-            print("User force exit, saving data...")
-            pf_data = np.array(pf_stat)
-            de_data = np.array(de_stat)
-            pf_data = np.squeeze(pf_data)
-            de_data = np.squeeze(de_data)
-            np.savetxt(stat_path_pf, pf_data, delimiter=",")
-            np.savetxt(stat_path_de, de_data, delimiter=",")
-            raw_input("Done saving, press Enter to continue...")
-            break
+                    iter+=1
+                    if iter == 50:
+                        model.X = model.X + 2.0
+                        print("Kidenpping robot!")
+        save_data(stat_path_pf, np.array(err_pf))
+        save_data(stat_path_de, np.array(err_de))
+        
             
-    print("Done Simulation, saving data...")
-    pf_data = np.array(pf_stat)
-    de_data = np.array(de_stat)
-    pf_data = np.squeeze(pf_data)
-    de_data = np.squeeze(de_data)
-    np.savetxt(stat_path_pf, pf_data, delimiter=",")
-    np.savetxt(stat_path_de, de_data, delimiter=",")
-    raw_input("Done saving, press Enter to continue...")
+    print("Done Simulation!")
+
 
     
 
