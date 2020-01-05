@@ -29,7 +29,7 @@ ground_trouth_transformation_map11 = np.array([5.24621998, 7.41091718, 3.1656565
 
 
 rospack = rospkg.RosPack()
-packadge_path = rospack.get_path('DMM')
+packadge_path = rospack.get_path('sequential_map_merging')
 file_path = packadge_path + '/maps/map3_v2.bag'
 origin_publisher = rospy.Publisher('origin_map', OccupancyGrid, queue_size = 10) 
 global_publisher = rospy.Publisher('global_map', OccupancyGrid, queue_size = 10) 

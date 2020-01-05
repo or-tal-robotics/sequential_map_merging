@@ -15,12 +15,16 @@ ground_trouth_transformation_map7 = np.array([-0.10729044,  4.94486143,  1.82609
 ground_trouth_transformation_map5 = np.array([-6.94304748,  9.92673817,  3.56565882])
 ground_trouth_transformation_map10 = np.array([ 0.533004618, 20.78074673,   1.83614012])
 ground_trouth_transformation_map3_v2 = np.array([5.24621998, 7.41091718, 3.16565656])
+
+
 rospack = rospkg.RosPack()
-packadge_path = rospack.get_path('DMM')
-file_path = packadge_path + '/maps/map10v2.bag'
-stat_path_de =  packadge_path + '/statistics/csv/MonteCarloStatistics_de_map10v2_kidneped.csv'
-stat_path_pf =  packadge_path + '/statistics/csv/MonteCarloStatistics_pf_map10v2_kidneped.csv'
+packadge_path = rospack.get_path('sequential_map_merging')
+file_path = packadge_path + '/maps/map3v2.bag'
+stat_path_de =  packadge_path + '/statistics/csv/MonteCarloStatistics_de_map3v2.csv'
+stat_path_pf =  packadge_path + '/statistics/csv/MonteCarloStatistics_pf_map3v2.csv'
 monte_carlo_runs = 50
+ground_trouth_transformation = ground_trouth_transformation_map3_v2
+kidnepped_flag = False
 
 def save_data(file_path, data):               
         df = pd.DataFrame([data])
@@ -108,8 +112,8 @@ if __name__ == '__main__':
                     # plt.subplot(3,1,2)
                     # plt.scatter(model.X[:,0], model.X[:,1])
 
-                    err_pf.append(get_error(model.X_map, ground_trouth_transformation_map5))
-                    err_de.append(get_error(X_de, ground_trouth_transformation_map5))
+                    err_pf.append(get_error(model.X_map, ground_trouth_transformation))
+                    err_de.append(get_error(X_de, ground_trouth_transformation))
                     # plt.subplot(3,1,3)
                     # plt.plot(err_pf, color = 'b')
                     # plt.plot(err_de, color = 'r')
@@ -119,7 +123,7 @@ if __name__ == '__main__':
                     print("PF error: "+str(err_pf[iter])+" , DE error: "+str(err_de[iter]))
                     print("-------------------------------------")
                     iter+=1
-                    if iter == 50:
+                    if iter == 50 and kidnepped_flag == True:
                         model.X = model.X + 2.0
                         print("Kidenpping robot!")
         save_data(stat_path_pf, np.array(err_pf))
