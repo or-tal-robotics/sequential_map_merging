@@ -2,8 +2,8 @@
 
 <launch>
 
-<include file="$(find DMM)/launch/empty_world.launch" >
-  <arg name="world_name" value="$(find DMM)/worlds/model2.world"/>
+<include file="$(find sequential_map_merging)/launch/empty_world.launch" >
+  <arg name="world_name" value="$(find sequential_map_merging)/worlds/model2.world"/>
 </include>
 
 </launch>

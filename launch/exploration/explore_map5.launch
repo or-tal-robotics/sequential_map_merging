@@ -2,8 +2,8 @@
 <launch>
 
 <!-- Launch robot -->
-<include file="$(find DMM)/launch/empty_world.launch" >
-  <arg name="world_name" value="$(find DMM)/worlds/map5_world/model.world"/>
+<include file="$(find sequential_map_merging)/launch/empty_world.launch" >
+  <arg name="world_name" value="$(find sequential_map_merging)/worlds/map5_world/model.world"/>
 </include>
 
 
@@ -17,7 +17,7 @@
 
   <node pkg="robot_state_publisher" type="robot_state_publisher" name="rob_st_pub" >
   </node>
-<param name="/ABot1/robot_description" command="$(find xacro)/xacro '$(find DMM)/urdf/ABot.urdf.xacro'" />
+<param name="/ABot1/robot_description" command="$(find xacro)/xacro '$(find sequential_map_merging)/urdf/ABot.urdf.xacro'" />
   <!-- push ABot_description to factory and spawn robot in gazebo -->
   <node name="spawn_ABot" pkg="gazebo_ros" type="spawn_model" args=" -x 1.2 -y -7.0 -Y 0.0 -urdf -model ABot1 -param /ABot1/robot_description" respawn="false" output="screen" />
 
@@ -60,7 +60,7 @@
 </node>
 
 <!--- Run Move Base -->
-   <include file="$(find DMM)/move_base/move_base_ABot1.launch"/>
+   <include file="$(find sequential_map_merging)/move_base/move_base_ABot1.launch"/>
 
 <node pkg="explore_lite" type="explore" respawn="false" name="explore" output="screen">
   <param name="robot_base_frame" value="/ABot1/base_link"/>
@@ -89,7 +89,7 @@
 
   <node pkg="robot_state_publisher" type="robot_state_publisher" name="rob_st_pub" >
   </node>
-<param name="/ABot2/robot_description" command="$(find xacro)/xacro '$(find DMM)/urdf/ABot.urdf.xacro'" />
+<param name="/ABot2/robot_description" command="$(find xacro)/xacro '$(find sequential_map_merging)/urdf/ABot.urdf.xacro'" />
   <!-- push ABot_description to factory and spawn robot in gazebo -->
   <node name="spawn_ABot" pkg="gazebo_ros" type="spawn_model" args=" -x 9 -y -2 -Y 1.5707 -urdf -model ABot2 -param /ABot2/robot_description" respawn="false" output="screen" />
 
@@ -132,7 +132,7 @@
 </node>
 
 <!--- Run Move Base -->
-   <include file="$(find DMM)/move_base/move_base_ABot2.launch"/>
+   <include file="$(find sequential_map_merging)/move_base/move_base_ABot2.launch"/>
 
 <node pkg="explore_lite" type="explore" respawn="false" name="explore" output="screen">
   <param name="robot_base_frame" value="/ABot2/base_link"/>
@@ -152,8 +152,8 @@
 
 
 <!-- Launch Rviz with config file  -->
-<node type="rviz" name="rviz1" pkg="rviz" args="-d $(find DMM)/rviz/viz1.rviz" />
-<node type="rviz" name="rviz2" pkg="rviz" args="-d $(find DMM)/rviz/viz2.rviz" />
+<node type="rviz" name="rviz1" pkg="rviz" args="-d $(find sequential_map_merging)/rviz/viz1.rviz" />
+<node type="rviz" name="rviz2" pkg="rviz" args="-d $(find sequential_map_merging)/rviz/viz2.rviz" />
 
 
 

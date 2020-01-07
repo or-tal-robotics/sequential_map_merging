@@ -286,7 +286,7 @@
   </plugin>
 </gazebo>
 
-  <xacro:include filename="$(find DMM)/urdf/hokuyo.xacro"/>
+  <xacro:include filename="$(find sequential_map_merging)/urdf/hokuyo.xacro"/>
   <xacro:laser name="base_laser" parent="base_link" xyz="0.225 0 0.2" rpy="0 0 0" meshes="package://gazebo_plugins/test/multi_robot_scenario/meshes/laser"/>
 
 </robot>

@@ -2,9 +2,9 @@
 <launch>
 
   
-<include file="$(find DMM)/launch/rviz_visualisation_mcl.launch"/>
-<include file="$(find DMM)/launch/empty_world.launch" >
-  <arg name="world_name" value="$(find DMM)/worlds/map3_world/model.world"/>
+<include file="$(find sequential_map_merging)/launch/rviz_visualisation_mcl.launch"/>
+<include file="$(find sequential_map_merging)/launch/empty_world.launch" >
+  <arg name="world_name" value="$(find sequential_map_merging)/worlds/map3_world/model.world"/>
 </include>
 
 <!--#############################################################-->
@@ -18,16 +18,16 @@
 
   <node pkg="robot_state_publisher" type="robot_state_publisher" name="rob_st_pub" >
   </node>
-<param name="robot_description1" command="$(find xacro)/xacro '$(find DMM)/urdf/ABot.urdf.xacro'" />
+<param name="robot_description1" command="$(find xacro)/xacro '$(find sequential_map_merging)/urdf/ABot.urdf.xacro'" />
   <!-- push ABot_description to factory and spawn robot in gazebo -->
-  <node name="spawn_ABot" pkg="gazebo_ros" type="spawn_model" args=" -x -6.5 -y -6.5 -Y 2.88 -urdf -model ABot1 -param robot_description1" respawn="false" output="screen" />
+  <node name="spawn_ABot" pkg="gazebo_ros" type="spawn_model" args=" -x -7 -y -5.2 -Y 1.547 -urdf -model ABot1 -param robot_description1" respawn="false" output="screen" />
 
 
   <node name="joy_node_ABot" pkg="joy" type="joy_node" output="screen">
   <param name="dev" value="/dev/input/js1" />
   <remap from="/joy" to="/ABot/joy"/>
   </node>
-  <node name="joystick_controler_ABot" pkg="DMM" type="joystick_controler_new.py" output="screen">
+  <node name="joystick_controler_ABot" pkg="sequential_map_merging" type="joystick_controler_new.py" output="screen">
   <remap from="/cmd_vel" to="/ABot1/cmd_vel"/>
   <remap from="/joy" to="/ABot1/joy"/>
   </node>
@@ -83,16 +83,16 @@
 
   <node pkg="robot_state_publisher" type="robot_state_publisher" name="rob_st_pub" >
   </node>
-<param name="robot_description2" command="$(find xacro)/xacro '$(find DMM)/urdf/ABot.urdf.xacro'" />
+<param name="robot_description2" command="$(find xacro)/xacro '$(find sequential_map_merging)/urdf/ABot.urdf.xacro'" />
   <!-- push ABot_description to factory and spawn robot in gazebo -->
-  <node name="spawn_ABot" pkg="gazebo_ros" type="spawn_model" args=" -x -17.7 -y 6.0 -Y -1.5707 -urdf -model ABot2 -param robot_description2" respawn="false" output="screen" />
+  <node name="spawn_ABot" pkg="gazebo_ros" type="spawn_model" args=" -x -13 -y 5.6 -Y -1.5707 -urdf -model ABot2 -param robot_description2" respawn="false" output="screen" />
 
 
   <node name="joy_node_ABot" pkg="joy" type="joy_node" output="screen">
   <param name="dev" value="/dev/input/js0" />
   <remap from="/joy" to="/ABot2/joy"/>
   </node>
-  <node name="joystick_controler_ABot" pkg="DMM" type="joystick_controler_new.py" output="screen">
+  <node name="joystick_controler_ABot" pkg="sequential_map_merging" type="joystick_controler_new.py" output="screen">
   <remap from="/cmd_vel" to="/ABot2/cmd_vel"/>
   <remap from="/joy" to="/ABot2/joy"/>
   </node>
