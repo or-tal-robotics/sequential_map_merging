@@ -12,11 +12,11 @@
   <node pkg="move_base" type="move_base" respawn="false" name="move_base_ABot" output="screen" >
     <param name="base_global_planner" value="$(arg base_global_planner)"/>
     <param name="base_local_planner" value="$(arg base_local_planner)"/>  
-    <rosparam file="$(find DMM)/move_base/config/ABot2/global_costmap_params_ABot.yaml" command="load" ns="global_costmap"/>
-    <rosparam file="$(find DMM)/move_base/config/ABot2/costmap_common_params_ABot.yaml" command="load" ns="global_costmap"/>
-    <rosparam file="$(find DMM)/move_base/config/ABot2/costmap_common_params_ABot.yaml" command="load" ns="local_costmap"/>
-    <rosparam file="$(find DMM)/move_base/config/ABot2/local_costmap_params_ABot.yaml" command="load" ns="local_costmap"/>
-    <rosparam file="$(find DMM)/move_base/config/ABot2/move_base_params_ABot.yaml" command="load" />
+    <rosparam file="$(find sequential_map_merging)/move_base/config/ABot2/global_costmap_params_ABot.yaml" command="load" ns="global_costmap"/>
+    <rosparam file="$(find sequential_map_merging)/move_base/config/ABot2/costmap_common_params_ABot.yaml" command="load" ns="global_costmap"/>
+    <rosparam file="$(find sequential_map_merging)/move_base/config/ABot2/costmap_common_params_ABot.yaml" command="load" ns="local_costmap"/>
+    <rosparam file="$(find sequential_map_merging)/move_base/config/ABot2/local_costmap_params_ABot.yaml" command="load" ns="local_costmap"/>
+    <rosparam file="$(find sequential_map_merging)/move_base/config/ABot2/move_base_params_ABot.yaml" command="load" />
     <param name="local_costmap/width" value="4"/>
     <param name="local_costmap/height" value="4"/> 
   

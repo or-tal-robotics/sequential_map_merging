@@ -20,9 +20,9 @@ ground_trouth_transformation_map10Disap = np.array([ 1.33004618, 20.3074673,   1
 
 rospack = rospkg.RosPack()
 packadge_path = rospack.get_path('sequential_map_merging')
-file_path = packadge_path + '/maps/map10Disap.bag'
-stat_path_de =  packadge_path + '/statistics/csv/MonteCarloStatistics_de_map10Disap.csv'
-stat_path_pf =  packadge_path + '/statistics/csv/MonteCarloStatistics_pf_map10Disap.csv'
+file_path = packadge_path + '/maps/map10V2Disap.bag'
+stat_path_de =  packadge_path + '/statistics/csv/MonteCarloStatistics_de_map10V2Disap.csv'
+stat_path_pf =  packadge_path + '/statistics/csv/MonteCarloStatistics_pf_map10V2Disap.csv'
 monte_carlo_runs = 50
 ground_trouth_transformation = ground_trouth_transformation_map10Disap
 kidnepped_flag = False

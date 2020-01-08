@@ -3,10 +3,10 @@
 <launch>
 
 
-<node pkg="DMM" type="OGtoLM.py" name="map_to_landmarks_node" 
+<node pkg="sequential_map_merging" type="OGtoLM.py" name="map_to_landmarks_node" 
 output="screen"/>
 
-<node pkg="DMM" type="tpf.py" name="tpf_node" 
+<node pkg="sequential_map_merging" type="tpf.py" name="tpf_node" 
 output="screen"/>
 
 
