@@ -16,6 +16,9 @@ ground_trouth_transformation_map5 = np.array([-6.94304748,  9.92673817,  3.56565
 ground_trouth_transformation_map10 = np.array([ 0.533004618, 20.78074673,   1.83614012])
 ground_trouth_transformation_map3_v2 = np.array([5.24621998, 7.41091718, 3.16565656])
 ground_trouth_transformation_map10Disap = np.array([ 1.33004618, 20.3074673,   1.83614012])
+ground_trouth_transformation_map10V2Disap = np.array([-0.51853119, 20.39218468,  1.7672772 ])
+
+
 
 
 rospack = rospkg.RosPack()
@@ -25,7 +28,7 @@ stat_path_de =  packadge_path + '/statistics/csv/MonteCarloStatistics_de_map10V2
 stat_path_pf =  packadge_path + '/statistics/csv/MonteCarloStatistics_pf_map10V2Disap.csv'
 monte_carlo_runs = 50
 ground_trouth_transformation = ground_trouth_transformation_map10Disap
-kidnepped_flag = False
+kidnepped_flag = True
 
 def save_data(file_path, data):               
         df = pd.DataFrame([data])
@@ -125,7 +128,8 @@ if __name__ == '__main__':
                     print("-------------------------------------")
                     iter+=1
                     if iter == 50 and kidnepped_flag == True:
-                        model.X = model.X + 2.0
+                        #model.X = model.X + 2.0
+                        ground_trouth_transformation = ground_trouth_transformation_map10V2Disap
                         print("Kidenpping robot!")
         save_data(stat_path_pf, np.array(err_pf))
         save_data(stat_path_de, np.array(err_de))
