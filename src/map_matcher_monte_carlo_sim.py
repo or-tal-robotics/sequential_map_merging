@@ -17,17 +17,18 @@ ground_trouth_transformation_map10 = np.array([ 0.533004618, 20.78074673,   1.83
 ground_trouth_transformation_map3_v2 = np.array([5.24621998, 7.41091718, 3.16565656])
 ground_trouth_transformation_map10Disap = np.array([ 1.33004618, 20.3074673,   1.83614012])
 ground_trouth_transformation_map10V2Disap = np.array([-0.51853119, 20.39218468,  1.7672772 ])
-
+ground_trouth_transformation_map10_s1 = np.array([ 0.87207527, 20.5153013,   1.82142467])
+ground_trouth_transformation_map10_s2 = np.array([13.84275813, 15.56581749,  2.84300749])
 
 
 
 rospack = rospkg.RosPack()
 packadge_path = rospack.get_path('sequential_map_merging')
-file_path = packadge_path + '/maps/map10V2Disap.bag'
-stat_path_de =  packadge_path + '/statistics/csv/MonteCarloStatistics_de_map10V2Disap.csv'
-stat_path_pf =  packadge_path + '/statistics/csv/MonteCarloStatistics_pf_map10V2Disap.csv'
+file_path = packadge_path + '/maps/map10V3Disap.bag'
+stat_path_de =  packadge_path + '/statistics/csv/MonteCarloStatistics_de_map10V3Disap.csv'
+stat_path_pf =  packadge_path + '/statistics/csv/MonteCarloStatistics_pf_map10V3Disap.csv'
 monte_carlo_runs = 50
-ground_trouth_transformation = ground_trouth_transformation_map10Disap
+ground_trouth_transformation = ground_trouth_transformation_map10_s1
 kidnepped_flag = True
 
 def save_data(file_path, data):               
@@ -96,7 +97,7 @@ if __name__ == '__main__':
                 else:
                     continue
             if init == 1 and init1 == 0 and init2 == 0:
-                model = ParticleFilterMapMatcher(nbrs, landMarksArray2)
+                model = ParticleFilterMapMatcher(nbrs, landMarksArray2, Np = 1500)
                 X_de = DEMapMatcher(nbrs, landMarksArray2)
                 init = 0
             elif init == 0 and init1 == 0 and init2 == 0:
@@ -127,9 +128,9 @@ if __name__ == '__main__':
                     print("PF error: "+str(err_pf[iter])+" , DE error: "+str(err_de[iter]))
                     print("-------------------------------------")
                     iter+=1
-                    if iter == 50 and kidnepped_flag == True:
+                    if iter == 61 and kidnepped_flag == True:
                         #model.X = model.X + 2.0
-                        ground_trouth_transformation = ground_trouth_transformation_map10V2Disap
+                        ground_trouth_transformation = ground_trouth_transformation_map10_s2
                         print("Kidenpping robot!")
         save_data(stat_path_pf, np.array(err_pf))
         save_data(stat_path_de, np.array(err_de))
