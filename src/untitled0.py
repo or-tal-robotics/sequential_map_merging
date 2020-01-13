@@ -12,7 +12,10 @@ def rotate_map_parallel(map, T):
     c ,s = np.cos(T[:,2]) , np.sin(T[:,2])
     R = np.array(((c,-s), (s, c)))
     Tmap = np.matmul(map,R)
-    rot_map = np.add(np.transpose(Tmap, (1,2,0)), T[:,0:2])
+    Tmap = np.transpose(Tmap, (1,2,0))
+    rot_map = Tmap.reshape((Tmap.shape[0],-1))
+    rot_map = rot_map + T[:,0:2].reshape((-1))
+    rot_map = rot_map.reshape(Tmap.shape)
     return rot_map
 
 
@@ -22,7 +25,10 @@ target_map = np.random.uniform(-1,1,size=(1500,2))
 c ,s = np.cos(T[:,2]) , np.sin(T[:,2])
 R = np.array(((c,-s), (s, c)))
 Tmap = np.matmul(map,R)
-rot_map = np.add(np.transpose(Tmap, (1,2,0)), T[:,0:2])
+Tmap = np.transpose(Tmap, (1,2,0))
+rot_map = Tmap.reshape((Tmap.shape[0],-1))
+rot_map = rot_map + T[:,0:2].reshape((-1))
+rot_map = rot_map.reshape(Tmap.shape)
 
 var = 0.1
 target_map_rotated = rotate_map_parallel(target_map, T)

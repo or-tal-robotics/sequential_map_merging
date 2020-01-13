@@ -1,6 +1,9 @@
 #!/usr/bin/env python
 import numpy as np
 from nav_msgs.msg import OccupancyGrid
+from scipy.optimize import differential_evolution
+from skimage.measure import ransac
+from skimage.transform import AffineTransform
 
 
 def send_map_ros_msg(landmarks, empty_landmarks, publisher, resolution = 0.01, width = 2048, height = 2048):
@@ -27,11 +30,21 @@ def send_map_ros_msg(landmarks, empty_landmarks, publisher, resolution = 0.01, w
     map_msg.data = data_out
     publisher.publish(map_msg)
     
+# def rotate_map_parallel(map, T):
+#     c ,s = np.cos(T[:,2]) , np.sin(T[:,2])
+#     R = np.array(((c,-s), (s, c)))
+#     Tmap = np.matmul(map,R)
+#     rot_map = np.add(np.transpose(Tmap, (1,2,0)), T[:,0:2])
+#     return np.transpose(rot_map, (1,0,2))
+
 def rotate_map_parallel(map, T):
     c ,s = np.cos(T[:,2]) , np.sin(T[:,2])
     R = np.array(((c,-s), (s, c)))
     Tmap = np.matmul(map,R)
-    rot_map = np.add(np.transpose(Tmap, (1,2,0)), T[:,0:2])
+    Tmap = np.transpose(Tmap, (1,2,0))
+    rot_map = Tmap.reshape((Tmap.shape[0],-1))
+    rot_map = rot_map + T[:,0:2].reshape((-1))
+    rot_map = rot_map.reshape(Tmap.shape)
     return rot_map
 
 def rotate_map(map, T):
@@ -56,7 +69,8 @@ def likelihood(target_map_rotated, origin_map_nbrs, var, origin_empty_map_nbrs=N
 def likelihood_parallel(T, target_map, origin_map_nbrs, var):
     target_map_rotated = rotate_map_parallel(target_map, T)
     d, _ = origin_map_nbrs.kneighbors(target_map_rotated.reshape((-1,2)))
-    p = np.mean((1/(np.sqrt(2*np.pi*var)))*np.exp(-np.power(d,2)/(2*var)), axis=0)
+    d = d.reshape((target_map_rotated.shape[0],target_map_rotated.shape[1]))
+    p = np.sum((1/(np.sqrt(2*np.pi*var)))*np.exp(-np.power(d,2)/(2*var)), axis=0) + 1e-200
     p = p/np.sum(p)
     return p
 
@@ -123,7 +137,10 @@ class ParticleFilterMapMatcher():
         self.indicate += 1
     
     def update_parallel(self, target_map, origin_map_nbrs, origin_empty_map_nbrs, res = 0.01):
-        L = likelihood_parallel(self.X, target_map, origin_map_nbrs, self.R_var)
+        L = likelihood_parallel(self.X, target_map, origin_map_nbrs, 0.01)
+        #L_not = likelihood_parallel(self.X, target_map, origin_empty_map_nbrs, 0.001)
+        #L_not = np.ones_like(L_not) - L_not
+        #L = np.multiply(L, L_not)
         if self.indicate > 0:
             self.W[:, self.indicate] = self.W[:, self.indicate - 1] * L
         else:
@@ -143,4 +160,24 @@ class ParticleFilterMapMatcher():
         self.X[:,2] = np.remainder(self.X[:,2],2*np.pi)
         self.indicate = 0
 
-   
+
+
+def DEMapMatcher(origin_map_nbrs, target_map, last_result = None):
+    DE_func = lambda x: -likelihood(rotate_map(target_map,x),origin_map_nbrs, 0.3)
+    if last_result is None:
+        result = differential_evolution(DE_func, bounds = [(-15,15),(-15,15),(0,2*np.pi)] ,maxiter= 100 ,popsize=6,tol=0.0001, mutation=0.8)
+        T_de = [result.x[0] , result.x[1] , min(result.x[2], 2*np.pi - result.x[2])]
+    else:
+        result = differential_evolution(DE_func, bounds = [(last_result[0]-10,last_result[0]+10),(last_result[1]-10,last_result[1]+10),(last_result[2]-0.5*np.pi,last_result[2]+0.5*np.pi)] ,maxiter= 100 ,popsize=6,tol=0.0001, mutation=0.8)
+        T_de = [result.x[0] , result.x[1] , min(result.x[2], 2*np.pi - result.x[2])]
+    return T_de
+
+def RANSACMapMatcher(origin_map, target_map):
+    if origin_map.shape[0] > target_map.shape[0]:
+        origin_map = origin_map[0:target_map.shape[0]]
+    else:
+        target_map = target_map[0:origin_map.shape[0]]
+    model_robust, inliers = ransac((origin_map, target_map), AffineTransform, min_samples=3,
+    residual_threshold=2, max_trials=100)
+    T_RANSAC = [model_robust.translation[0],model_robust.translation[1],model_robust.rotation]
+    return T_RANSAC

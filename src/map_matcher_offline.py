@@ -10,7 +10,7 @@ from nav_msgs.msg import OccupancyGrid, MapMetaData
 from tf.transformations import quaternion_from_euler
 import rosbag
 import rospkg 
-from map_matcher import send_map_ros_msg, rotate_map, ParticleFilterMapMatcher, likelihood
+from map_matcher import send_map_ros_msg, rotate_map, ParticleFilterMapMatcher, likelihood, DEMapMatcher, RANSACMapMatcher
 
 ground_trouth_origin = np.array([-12,-5.0, 0])
 ground_trouth_target = np.array([4.0, -8.0, -2.75])
@@ -22,6 +22,10 @@ ground_trouth_transformation_map10 = np.array([ 1.33004618, 20.3074673,   1.8361
 ground_trouth_transformation_map11 = np.array([5.24621998, 7.41091718, 3.16565656])
 ground_trouth_transformation_map10_s1 = np.array([ 0.87207527, 20.5153013,   1.82142467])
 ground_trouth_transformation_map10_s2 = np.array([13.84275813, 15.56581749,  2.84300749])
+ground_trouth_transformation_map5_s1 = np.array([6.70767783, 5.53418701, 1.56826218])
+ground_trouth_transformation_map5_s2 = np.array([ 5.11960965, -8.43495044,  2.0768514 ])
+
+
 
 
 
@@ -37,7 +41,7 @@ ground_trouth_transformation_map10_s2 = np.array([13.84275813, 15.56581749,  2.8
 
 rospack = rospkg.RosPack()
 packadge_path = rospack.get_path('sequential_map_merging')
-file_path = packadge_path + '/maps/map10V3Disap.bag'
+file_path = packadge_path + '/maps/map5Disap.bag'
 origin_publisher = rospy.Publisher('origin_map', OccupancyGrid, queue_size = 10) 
 global_publisher = rospy.Publisher('global_map', OccupancyGrid, queue_size = 10) 
 target_publisher = rospy.Publisher('target_map', OccupancyGrid, queue_size = 10) 
@@ -47,15 +51,7 @@ def get_error(T):
     return  np.linalg.norm(T - ground_trouth_transformation_map7)
 
 
-def DEMapMatcher(origin_map_nbrs, target_map, last_result = None):
-    DE_func = lambda x: -likelihood(rotate_map(target_map,x),origin_map_nbrs, 0.3)
-    if last_result is None:
-        result = differential_evolution(DE_func, bounds = [(-15,15),(-15,15),(0,2*np.pi)] ,maxiter= 100 ,popsize=6,tol=0.0001, mutation=0.8)
-        T_de = [result.x[0] , result.x[1] , min(result.x[2], 2*np.pi - result.x[2])]
-    else:
-        result = differential_evolution(DE_func, bounds = [(last_result[0]-10,last_result[0]+10),(last_result[1]-10,last_result[1]+10),(last_result[2]-0.5*np.pi,last_result[2]+0.5*np.pi)] ,maxiter= 100 ,popsize=6,tol=0.0001, mutation=0.8)
-        T_de = [result.x[0] , result.x[1] , min(result.x[2], 2*np.pi - result.x[2])]
-    return T_de
+
 
 
 
@@ -82,14 +78,13 @@ if __name__ == '__main__':
                     cm1 = np.sum(np.transpose(landMarksArray1),axis=1)/len(landMarksArray1)
                 landMarksArray1 = landMarksArray1 - cm1
                 landMarksArray1_empty = landMarksArray1_empty - cm1
-                #landMarksArray1_rc = landMarksArray1[np.random.choice(a = len(landMarksArray1), size = len(landMarksArray1)//1)]
-                if len(landMarksArray1) > 500:
-                    a = len(landMarksArray1)//500
+                if len(landMarksArray1) > 100:
+                    a = len(landMarksArray1)//100
                 else:
                     a = 1
                 landMarksArray1_rc = landMarksArray1[np.arange(0,len(landMarksArray1),a)]
-                nbrs = NearestNeighbors(n_neighbors= 1, algorithm='kd_tree',n_jobs = -1).fit(landMarksArray1_rc)
-                nbrs_empty = NearestNeighbors(n_neighbors= 1, algorithm='kd_tree',n_jobs = -1).fit(landMarksArray1_empty)
+                nbrs = NearestNeighbors(n_neighbors= 1, algorithm='kd_tree').fit(landMarksArray1_rc)
+                nbrs_empty = NearestNeighbors(n_neighbors= 1, algorithm='kd_tree').fit(landMarksArray1_empty)
                 init1 = 0
             else:
                 continue
@@ -111,14 +106,16 @@ if __name__ == '__main__':
             else:
                 continue
         if init == 1 and init1 == 0 and init2 == 0:
-            model = ParticleFilterMapMatcher(nbrs, landMarksArray2, Np = 2000)
+            model = ParticleFilterMapMatcher(nbrs, landMarksArray2, Np = 1000)
             #X_de = DEMapMatcher(nbrs, landMarksArray2)
             init = 0
         elif init == 0 and init1 == 0 and init2 == 0:
             model.predict()
             #model.update(landMarksArray2, nbrs, nbrs_empty, scale1)
-            model.update_parallel(landMarksArray2, nbrs, nbrs_empty, scale1)
+            model.update(landMarksArray2, nbrs, nbrs_empty, scale1)
             #X_de = DEMapMatcher(nbrs, landMarksArray2, X_de)
+            X_ransac = RANSACMapMatcher(landMarksArray1, landMarksArray2)
+            print(X_ransac)
             if model.indicate == model.N_history:
                 model.resample()
 
