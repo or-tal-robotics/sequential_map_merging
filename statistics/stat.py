@@ -10,9 +10,9 @@ import matplotlib.pyplot as plt
 import numpy as np
 import matplotlib._color_data as mcd
 
-data_de = pd.read_csv("csv/MonteCarloStatistics_de_map10V3Disap.csv", sep='\t')
+data_de = pd.read_csv("csv/MonteCarloStatistics_de_map5Disap.csv", sep='\t')
 data_de = data_de.values
-data_pf = pd.read_csv("csv/MonteCarloStatistics_pf_map10V3Disap.csv",sep='\t')
+data_pf = pd.read_csv("csv/MonteCarloStatistics_pf_map5Disap.csv",sep='\t')
 data_pf = data_pf.values
 avg_de = np.mean(data_de, axis=0)
 avg_pf = np.mean(data_pf, axis=0)

@@ -7,6 +7,7 @@ Created on Sun Jan 12 17:30:29 2020
 """
 import numpy as np
 from sklearn.neighbors import NearestNeighbors 
+import cv2
 
 def rotate_map_parallel(map, T):
     c ,s = np.cos(T[:,2]) , np.sin(T[:,2])
@@ -37,3 +38,14 @@ d, _ = nbrs.kneighbors(target_map_rotated.reshape((-1,2)))
 d = d.reshape((target_map_rotated.shape[0],target_map_rotated.shape[1]))
 p = np.mean((1/(np.sqrt(2*np.pi*var)))*np.exp(-np.power(d,2)/(2*var)), axis=0)
 p = p/np.sum(p)
+
+init_pose=(0,0,0)
+Tr = np.array([[np.cos(init_pose[2]),-np.sin(init_pose[2]),init_pose[0]],
+                   [np.sin(init_pose[2]), np.cos(init_pose[2]),init_pose[1]],
+                   [0,                    0,                   1          ]])
+
+src = cv2.transform(map, Tr[0:2,0:2])[:,:,0]
+dst = target_map
+nbrs = NearestNeighbors(n_neighbors=1, algorithm='auto').fit(dst)
+distances, indices = nbrs.kneighbors(src)
+indices = indices.reshape((-1))

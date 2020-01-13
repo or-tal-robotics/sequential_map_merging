@@ -7,7 +7,7 @@ import copy
 import pandas as pd
 import rosbag
 import rospkg 
-from map_matcher import rotate_map, likelihood, DEMapMatcher, ParticleFilterMapMatcher, RANSACMapMatcher
+from map_matcher import rotate_map, likelihood, DEMapMatcher, ParticleFilterMapMatcher, ICPMapMatcher, RANSACMapMatcher
 
 ground_trouth_transformation = np.array([-6.94304748,  9.92673817,  3.56565882])
 ground_trouth_transformation_map7 = np.array([-0.10729044,  4.94486143,  1.82609867])
@@ -29,6 +29,7 @@ file_path = packadge_path + '/maps/map5Disap.bag'
 stat_path_de =  packadge_path + '/statistics/csv/MonteCarloStatistics_de_map5Disap.csv'
 stat_path_pf =  packadge_path + '/statistics/csv/MonteCarloStatistics_pf_map5Disap.csv'
 stat_path_ransac =  packadge_path + '/statistics/csv/MonteCarloStatistics_ransac_map5Disap.csv'
+stat_path_icp =  packadge_path + '/statistics/csv/MonteCarloStatistics_icp_map5Disap.csv'
 monte_carlo_runs = 50
 ground_trouth_transformation = ground_trouth_transformation_map5_s1
 kidnepped_flag = True
@@ -54,6 +55,7 @@ if __name__ == '__main__':
         err_pf = []
         err_de = []
         err_ransac = []
+        err_icp = []
         iter = 0
         for topic, msg, t in bag.read_messages(topics=['/ABot1/map', '/ABot2/map']):
             if rospy.is_shutdown():
@@ -101,22 +103,25 @@ if __name__ == '__main__':
                 else:
                     continue
             if init == 1 and init1 == 0 and init2 == 0:
-                model = ParticleFilterMapMatcher(nbrs, landMarksArray2, Np = 1000)
+                model = ParticleFilterMapMatcher(nbrs, landMarksArray2, Np = 150)
                 X_de = DEMapMatcher(nbrs, landMarksArray2)
-                X_ransac = RANSACMapMatcher(landMarksArray1, landMarksArray2)
+                X_ransac = RANSACMapMatcher(landMarksArray2, landMarksArray1)
+                X_icp = ICPMapMatcher(landMarksArray2, landMarksArray1)
                 init = 0
             elif init == 0 and init1 == 0 and init2 == 0:
                 model.predict()
                 model.update(landMarksArray2, nbrs, nbrs_empty, scale1)
                 X_de = DEMapMatcher(nbrs, landMarksArray2, X_de)
-                X_ransac = RANSACMapMatcher(landMarksArray1, landMarksArray2)
+                X_ransac = RANSACMapMatcher(landMarksArray2, landMarksArray1)
+                X_icp = ICPMapMatcher(landMarksArray2, landMarksArray1)
                 if model.indicate == model.N_history:
                     model.resample()
                     err_pf.append(get_error(model.X_map, ground_trouth_transformation))
                     err_de.append(get_error(X_de, ground_trouth_transformation))
                     err_ransac.append(get_error(X_ransac, ground_trouth_transformation))
+                    err_icp.append(get_error(X_icp, ground_trouth_transformation))
                     print("Monte Carlo run: "+str(r)+", step: "+str(iter))
-                    print("PF error: "+str(err_pf[iter])+" , DE error: "+str(err_de[iter]) +" , RANSAC error: "+str(err_ransac[iter]))
+                    print("PF: "+str(err_pf[iter])+" , DE: "+str(err_de[iter]) +" , RANSAC: "+str(err_ransac[iter]) +" , ICP: "+str(err_icp[iter]))
                     print("-------------------------------------")
                     iter+=1
                     if iter == 25 and kidnepped_flag == True:
@@ -126,6 +131,7 @@ if __name__ == '__main__':
         save_data(stat_path_pf, np.array(err_pf))
         save_data(stat_path_de, np.array(err_de))
         save_data(stat_path_ransac, np.array(err_ransac))
+        save_data(stat_path_icp, np.array(err_icp))
         
             
     print("Done Simulation!")

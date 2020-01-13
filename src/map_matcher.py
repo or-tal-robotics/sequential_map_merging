@@ -4,6 +4,8 @@ from nav_msgs.msg import OccupancyGrid
 from scipy.optimize import differential_evolution
 from skimage.measure import ransac
 from skimage.transform import AffineTransform
+from sklearn.neighbors import NearestNeighbors
+import cv2
 
 
 def send_map_ros_msg(landmarks, empty_landmarks, publisher, resolution = 0.01, width = 2048, height = 2048):
@@ -172,12 +174,24 @@ def DEMapMatcher(origin_map_nbrs, target_map, last_result = None):
         T_de = [result.x[0] , result.x[1] , min(result.x[2], 2*np.pi - result.x[2])]
     return T_de
 
-def RANSACMapMatcher(origin_map, target_map):
+def RANSACMapMatcher(target_map, origin_map):
     if origin_map.shape[0] > target_map.shape[0]:
         origin_map = origin_map[0:target_map.shape[0]]
-    else:
+    elif origin_map.shape[0] < target_map.shape[0]:
         target_map = target_map[0:origin_map.shape[0]]
-    model_robust, inliers = ransac((origin_map, target_map), AffineTransform, min_samples=3,
+    model_robust, inliers =  ((origin_map, target_map), AffineTransform, min_samples=3,
     residual_threshold=2, max_trials=100)
     T_RANSAC = [model_robust.translation[0],model_robust.translation[1],model_robust.rotation]
     return T_RANSAC
+
+def ICPMapMatcher(src, dst, init_pose=(0,0,0), no_iterations = 13):
+    Tr = np.array([[np.cos(init_pose[2]),-np.sin(init_pose[2])],
+                   [np.sin(init_pose[2]), np.cos(init_pose[2])]])
+    src = cv2.transform(src, Tr)[:,:,0]
+    nbrs = NearestNeighbors(n_neighbors=1, algorithm='ball_tree').fit(dst)
+    for i in range(no_iterations):
+        distances, indices = nbrs.kneighbors(src)
+        T = RANSACMapMatcher(dst[indices.reshape((-1))], src)
+        Tr = np.array([[np.cos(T[2]),-np.sin(T[2])],[np.sin(T[2]), np.cos(T[2])]])
+        src = cv2.transform(src, Tr)[:,:,0]
+    return T
