@@ -10,34 +10,7 @@ from nav_msgs.msg import OccupancyGrid, MapMetaData
 from tf.transformations import quaternion_from_euler
 import rosbag
 import rospkg 
-from map_matcher import send_map_ros_msg, rotate_map, ParticleFilterMapMatcher, likelihood, DEMapMatcher, RANSACMapMatcher
-
-ground_trouth_origin = np.array([-12,-5.0, 0])
-ground_trouth_target = np.array([4.0, -8.0, -2.75])
-ground_trouth_transformation_map5 = np.array([-6.94304748,  9.92673817,  3.56565882])
-ground_trouth_transformation_map6 = np.array([4.34298586,  11.52861869,  1.58713136])
-ground_trouth_transformation_map7 = np.array([-0.10729044,  4.94486143,  1.82609867])
-ground_trouth_transformation_map9 = np.array([-8.13543295,  8.9289462,   1.83688384])
-ground_trouth_transformation_map10 = np.array([ 1.33004618, 20.3074673,   1.83614012])
-ground_trouth_transformation_map11 = np.array([5.24621998, 7.41091718, 3.16565656])
-ground_trouth_transformation_map10_s1 = np.array([ 0.87207527, 20.5153013,   1.82142467])
-ground_trouth_transformation_map10_s2 = np.array([13.84275813, 15.56581749,  2.84300749])
-ground_trouth_transformation_map5_s1 = np.array([6.70767783, 5.53418701, 1.56826218])
-ground_trouth_transformation_map5_s2 = np.array([ 5.11960965, -8.43495044,  2.0768514 ])
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+from map_matcher import send_map_ros_msg, rotate_map, ParticleFilterMapMatcher, likelihood, DEMapMatcher, RANSACMapMatcher, OccupancyGrid2LandmarksArray
 
 rospack = rospkg.RosPack()
 packadge_path = rospack.get_path('sequential_map_merging')
@@ -45,15 +18,6 @@ file_path = packadge_path + '/maps/map5Disap.bag'
 origin_publisher = rospy.Publisher('origin_map', OccupancyGrid, queue_size = 10) 
 global_publisher = rospy.Publisher('global_map', OccupancyGrid, queue_size = 10) 
 target_publisher = rospy.Publisher('target_map', OccupancyGrid, queue_size = 10) 
-
-
-def get_error(T): 
-    return  np.linalg.norm(T - ground_trouth_transformation_map7)
-
-
-
-
-
 
    
 if __name__ == '__main__':
@@ -67,23 +31,14 @@ if __name__ == '__main__':
             break
         if topic == '/ABot1/map':
             map1_msg = msg
-            map1 = np.array(msg.data , dtype = np.float32)
-            N1 = np.sqrt(map1.shape)[0].astype(np.int32)
-            Re1 = np.copy(map1.reshape((N1,N1)))
+            landMarksArray1, landMarksArray1_empty = OccupancyGrid2LandmarksArray(map1_msg, filter_map = Nf)
             scale1 = msg.info.resolution
-            landMarksArray1 = (np.argwhere( Re1 == 100 ) * scale1)
-            landMarksArray1_empty = (np.argwhere( Re1 == 0 ) * scale1)
-            if landMarksArray1.shape[0] != 0:
+            if landMarksArray1 != "empty":
                 if init1 == 1:
                     cm1 = np.sum(np.transpose(landMarksArray1),axis=1)/len(landMarksArray1)
                 landMarksArray1 = landMarksArray1 - cm1
                 landMarksArray1_empty = landMarksArray1_empty - cm1
-                if len(landMarksArray1) > 100:
-                    a = len(landMarksArray1)//100
-                else:
-                    a = 1
-                landMarksArray1_rc = landMarksArray1[np.arange(0,len(landMarksArray1),a)]
-                nbrs = NearestNeighbors(n_neighbors= 1, algorithm='kd_tree').fit(landMarksArray1_rc)
+                nbrs = NearestNeighbors(n_neighbors= 1, algorithm='kd_tree').fit(landMarksArray1)
                 nbrs_empty = NearestNeighbors(n_neighbors= 1, algorithm='kd_tree').fit(landMarksArray1_empty)
                 init1 = 0
             else:
@@ -91,13 +46,9 @@ if __name__ == '__main__':
 
         if topic == '/ABot2/map':
             map2_msg = msg
-            map2 = np.array(msg.data , dtype = np.float32)
-            N2 = np.sqrt(map2.shape)[0].astype(np.int32)
-            Re2 = np.copy(map2.reshape((N2,N2)))
+            landMarksArray2, landMarksArray2_empty = OccupancyGrid2LandmarksArray(map2_msg)
             scale2 = msg.info.resolution
-            landMarksArray2 = (np.argwhere( Re2 == 100 ) * scale2)
-            landMarksArray2_empty = (np.argwhere( Re2 == 0 ) * scale2)
-            if landMarksArray2.shape[0] != 0:
+            if landMarksArray2 != "empty":
                 if init2 == 1:
                     cm2 = np.sum(np.transpose(landMarksArray2),axis=1)/len(landMarksArray2) 
                 landMarksArray2 = landMarksArray2 - cm2
@@ -127,7 +78,6 @@ if __name__ == '__main__':
                 send_map_ros_msg(estimated_global_map, estimated_global_empty_map, global_publisher, resolution=scale1)
                 send_map_ros_msg(landMarksArray1, landMarksArray1_empty, origin_publisher, resolution=scale1)
                 send_map_ros_msg(landMarksArray2,landMarksArray2_empty , target_publisher, resolution=scale2)
-    raw_input("Press Enter to continue...")
 
     
 
