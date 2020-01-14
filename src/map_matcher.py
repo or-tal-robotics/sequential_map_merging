@@ -3,7 +3,7 @@ import numpy as np
 from nav_msgs.msg import OccupancyGrid
 from scipy.optimize import differential_evolution
 from skimage.measure import ransac
-from skimage.transform import AffineTransform
+from skimage.transform import AffineTransform, SimilarityTransform
 from sklearn.neighbors import NearestNeighbors
 import cv2
 
@@ -78,11 +78,34 @@ def likelihood_parallel(T, target_map, origin_map_nbrs, var):
 
 
 class ParticleFilterMapMatcher():
-    def __init__(self,init_origin_map_nbrs, init_target_map, Np = 1000, N_history = 5,  N_theta = 50, N_x = 20, N_y = 20, R_var = 0.1):
+    def __init__(self,
+    init_origin_map_nbrs,
+    init_target_map,
+    Np = 1000,
+    N_history = 5,
+    N_theta = 50,
+    N_x = 20,
+    N_y = 20,
+    R_var = 0.1,
+    Q_xy = 0.1,
+    Q_theta = 0.1,
+    R_xy = 0.2,
+    R_theta = 0.2,
+    P_theta = [0.6,0.1,0.1,0.2],
+    P_xy = [0.7, 0.05, 0.1, 0.05,0.1],
+    xy_mul = 2.0):
         self.Np = Np
         self.R_var = R_var
         self.N_history = N_history
         self.filter = np.arange(3,N_history+3,dtype=np.float32)
+        self.Q_xy = Q_xy
+        self.Q_theta = Q_theta
+        self.R_xy = R_xy
+        self.R_theta = R_theta
+        self.P_theta = P_theta
+        self.P_xy = P_xy
+        self.xy_mul = xy_mul
+
         temp_X = []
         angles = np.linspace(0 , 2*np.pi ,N_theta )
         xRange = np.linspace(-10 , 10 , N_x) 
@@ -125,8 +148,8 @@ class ParticleFilterMapMatcher():
         print("Initilizing done with "+str(Np)+" samples out of "+str(len(temp_X)))
 
     def predict(self):
-        self.X[:,0:2] = self.X[:,0:2] + np.random.normal(0.0, 0.05, size=self.X[:,0:2].shape)
-        self.X[:,2] = self.X[:,2] + np.random.normal(0.0, 0.01, size=self.X[:,2].shape)
+        self.X[:,0:2] = self.X[:,0:2] + np.random.normal(0.0, self.Q_xy, size=self.X[:,0:2].shape)
+        self.X[:,2] = self.X[:,2] + np.random.normal(0.0, self.Q_theta, size=self.X[:,2].shape)
         self.X[:,2] = np.remainder(self.X[:,2],2*np.pi)
 
     def update(self, target_map, origin_map_nbrs, origin_empty_map_nbrs, res = 0.01):
@@ -156,9 +179,9 @@ class ParticleFilterMapMatcher():
         self.X_map = self.X[np.argmax(p)]
         idxs = np.random.choice(a = self.Np, size = self.Np,p = p)
         self.X = self.X[idxs]
-        self.X[:,0] = self.X[:,0] + np.random.normal(0.0, 0.3, size=self.X[:,0].shape) + np.random.randint(-1,2) * np.random.choice(a = 5, size = self.X[:,0].shape,p = [0.7,0.1,0.1,0.1, 0.0] )*2.0
-        self.X[:,1] = self.X[:,1] + np.random.normal(0.0, 0.3, size=self.X[:,1].shape) + np.random.randint(-1,2) * np.random.choice(a = 5, size = self.X[:,1].shape,p = [0.7,0.1,0.1,0.1, 0.0]  )*2.0
-        self.X[:,2] = self.X[:,2] + np.random.normal(0.0, 0.1, size=self.X[:,2].shape) + np.random.choice(a = 4, size = self.X[:,2].shape,p = [0.7,0.1,0.1,0.1] )*0.5*np.pi
+        self.X[:,0] = self.X[:,0] + np.random.normal(0.0, self.R_xy, size=self.X[:,0].shape) + np.random.randint(-1,2) * np.random.choice(a = 5, size = self.X[:,0].shape,p = self.P_xy)*self.xy_mul
+        self.X[:,1] = self.X[:,1] + np.random.normal(0.0, self.R_xy, size=self.X[:,1].shape) + np.random.randint(-1,2) * np.random.choice(a = 5, size = self.X[:,1].shape,p = self.P_xy)*self.xy_mul
+        self.X[:,2] = self.X[:,2] + np.random.normal(0.0, self.R_theta, size=self.X[:,2].shape) + np.random.choice(a = 4, size = self.X[:,2].shape,p = self.P_theta )*0.5*np.pi
         self.X[:,2] = np.remainder(self.X[:,2],2*np.pi)
         self.indicate = 0
 
@@ -175,13 +198,17 @@ def DEMapMatcher(origin_map_nbrs, target_map, last_result = None):
     return T_de
 
 def RANSACMapMatcher(target_map, origin_map):
+    min_samples = min([int(0.5 * len(target_map)), int(0.5 * len(origin_map))])
     if origin_map.shape[0] > target_map.shape[0]:
         origin_map = origin_map[0:target_map.shape[0]]
     elif origin_map.shape[0] < target_map.shape[0]:
         target_map = target_map[0:origin_map.shape[0]]
-    model_robust, inliers =  ransac((origin_map, target_map), AffineTransform, min_samples=3,
-    residual_threshold=2, max_trials=100)
+    model_robust, inliers =  ransac((origin_map, target_map), SimilarityTransform, min_samples=min_samples,
+    residual_threshold=10, max_trials=100)
     T_RANSAC = [model_robust.translation[0],model_robust.translation[1],model_robust.rotation]
+    if T_RANSAC[2]<0:
+         T_RANSAC[2] = 2*np.pi - T_RANSAC[2]
+    T_RANSAC[2] = np.remainder(T_RANSAC[2],2*np.pi)
     return T_RANSAC
 
 def ICPMapMatcher(src, dst, init_pose=(0,0,0), no_iterations = 13):
@@ -191,7 +218,7 @@ def ICPMapMatcher(src, dst, init_pose=(0,0,0), no_iterations = 13):
     nbrs = NearestNeighbors(n_neighbors=1, algorithm='ball_tree').fit(dst)
     for i in range(no_iterations):
         distances, indices = nbrs.kneighbors(src)
-        T = RANSACMapMatcher(dst[indices.reshape((-1))], src)
+        T = RANSACMapMatcher(src, dst[indices.reshape((-1))])
         Tr = np.array([[np.cos(T[2]),-np.sin(T[2])],[np.sin(T[2]), np.cos(T[2])]])
         src = cv2.transform(src, Tr)[:,:,0]
     return T
