@@ -7,7 +7,7 @@ import copy
 import pandas as pd
 import rosbag
 import rospkg 
-from map_matcher import rotate_map, likelihood, DEMapMatcher, ParticleFilterMapMatcher, ICPMapMatcher, RANSACMapMatcher
+from map_matcher import rotate_map, likelihood, DEMapMatcher, ParticleFilterMapMatcher, ICPMapMatcher, RANSACMapMatcher, OccupancyGrid2LandmarksArray
 
 ground_trouth_transformation = np.array([-6.94304748,  9.92673817,  3.56565882])
 ground_trouth_transformation_map7 = np.array([-0.10729044,  4.94486143,  1.82609867])
@@ -28,8 +28,8 @@ packadge_path = rospack.get_path('sequential_map_merging')
 file_path = packadge_path + '/maps/map5Disap.bag'
 stat_path_de =  packadge_path + '/statistics/csv/MonteCarloStatistics_de_map5Disap.csv'
 stat_path_pf =  packadge_path + '/statistics/csv/MonteCarloStatistics_pf_map5Disap.csv'
-stat_path_ransac =  packadge_path + '/statistics/csv/MonteCarloStatistics_ransac_map5Disap.csv'
-stat_path_icp =  packadge_path + '/statistics/csv/MonteCarloStatistics_icp_map5Disap.csv'
+#stat_path_ransac =  packadge_path + '/statistics/csv/MonteCarloStatistics_ransac_map5Disap.csv'
+#stat_path_icp =  packadge_path + '/statistics/csv/MonteCarloStatistics_icp_map5Disap.csv'
 monte_carlo_runs = 50
 ground_trouth_transformation = ground_trouth_transformation_map5_s1
 kidnepped_flag = True
@@ -48,14 +48,22 @@ def get_error(T, ground_trouth):
 if __name__ == '__main__':
     bag = rosbag.Bag(file_path)
     rospy.init_node('offline_map_matcher_monte_carlo_tester_kidneped')
+    Np = rospy.get_param("/sequential_map_matcher/n_particles",500)
+    Nf = rospy.get_param("/sequential_map_matcher/n_observation",500)
+    N_history = rospy.get_param("/sequential_map_matcher/n_history",5)
+    N_theta = rospy.get_param("/sequential_map_matcher/n_theta",50)
+    N_x = rospy.get_param("/sequential_map_matcher/n_x",20)
+    N_y = rospy.get_param("/sequential_map_matcher/n_y",20)
+    R_var = rospy.get_param("/sequential_map_matcher/R_var",0.1)
+
     pf_stat = []
     de_stat = []
     for r in range(monte_carlo_runs):
         init, init1, init2 = 1, 1, 1
         err_pf = []
         err_de = []
-        err_ransac = []
-        err_icp = []
+        #err_ransac = []
+        #err_icp = []
         iter = 0
         for topic, msg, t in bag.read_messages(topics=['/ABot1/map', '/ABot2/map']):
             if rospy.is_shutdown():
@@ -64,22 +72,13 @@ if __name__ == '__main__':
 
             if topic == '/ABot1/map':
                 map1_msg = msg
-                map1 = np.array(msg.data , dtype = np.float32)
-                N1 = np.sqrt(map1.shape)[0].astype(np.int32)
-                Re1 = np.copy(map1.reshape((N1,N1)))
                 scale1 = msg.info.resolution
-                landMarksArray1 = (np.argwhere( Re1 == 100 ) * scale1)
-                landMarksArray1_empty = (np.argwhere( Re1 == 0 ) * scale1)
+                landMarksArray1, landMarksArray1_empty = OccupancyGrid2LandmarksArray(map1_msg, filter_map = Nf)
                 if landMarksArray1.shape[0] != 0:
                     if init1 == 1:
                         cm1 = np.sum(np.transpose(landMarksArray1),axis=1)/len(landMarksArray1)
                     landMarksArray1 = landMarksArray1 - cm1
                     landMarksArray1_empty = landMarksArray1_empty - cm1
-                    if len(landMarksArray1) > 500:
-                        a = len(landMarksArray1)//500
-                    else:
-                        a = 1
-                    landMarksArray1_rc = landMarksArray1[np.arange(0,len(landMarksArray1),a)]
                     nbrs = NearestNeighbors(n_neighbors= 1, algorithm='ball_tree').fit(landMarksArray1_rc)
                     nbrs_empty = NearestNeighbors(n_neighbors= 1, algorithm='ball_tree').fit(landMarksArray1_empty)
                     init1 = 0
@@ -103,25 +102,26 @@ if __name__ == '__main__':
                 else:
                     continue
             if init == 1 and init1 == 0 and init2 == 0:
-                model = ParticleFilterMapMatcher(nbrs, landMarksArray2, Np = 150)
+                model = ParticleFilterMapMatcher(nbrs, landMarksArray2, Np, N_history, N_theta, N_x, N_y, R_var)
                 X_de = DEMapMatcher(nbrs, landMarksArray2)
-                X_ransac = RANSACMapMatcher(landMarksArray2, landMarksArray1)
-                X_icp = ICPMapMatcher(landMarksArray2, landMarksArray1)
+                #X_ransac = RANSACMapMatcher(landMarksArray2, landMarksArray1)
+                #X_icp = ICPMapMatcher(landMarksArray2, landMarksArray1)
                 init = 0
             elif init == 0 and init1 == 0 and init2 == 0:
                 model.predict()
                 model.update(landMarksArray2, nbrs, nbrs_empty, scale1)
                 X_de = DEMapMatcher(nbrs, landMarksArray2, X_de)
-                X_ransac = RANSACMapMatcher(landMarksArray2, landMarksArray1)
-                X_icp = ICPMapMatcher(landMarksArray2, landMarksArray1)
+                #X_ransac = RANSACMapMatcher(landMarksArray2, landMarksArray1)
+                #X_icp = ICPMapMatcher(landMarksArray2, landMarksArray1)
                 if model.indicate == model.N_history:
                     model.resample()
                     err_pf.append(get_error(model.X_map, ground_trouth_transformation))
                     err_de.append(get_error(X_de, ground_trouth_transformation))
-                    err_ransac.append(get_error(X_ransac, ground_trouth_transformation))
-                    err_icp.append(get_error(X_icp, ground_trouth_transformation))
+                    #err_ransac.append(get_error(X_ransac, ground_trouth_transformation))
+                    #err_icp.append(get_error(X_icp, ground_trouth_transformation))
                     print("Monte Carlo run: "+str(r)+", step: "+str(iter))
-                    print("PF: "+str(err_pf[iter])+" , DE: "+str(err_de[iter]) +" , RANSAC: "+str(err_ransac[iter]) +" , ICP: "+str(err_icp[iter]))
+                    print("PF: "+str(err_pf[iter])+" , DE: "+str(err_de[iter]))
+                    #print("PF: "+str(err_pf[iter])+" , DE: "+str(err_de[iter]) +" , RANSAC: "+str(err_ransac[iter]) +" , ICP: "+str(err_icp[iter]))
                     print("-------------------------------------")
                     iter+=1
                     if iter == 25 and kidnepped_flag == True:
@@ -130,8 +130,8 @@ if __name__ == '__main__':
                         print("Kidenpping robot!")
         save_data(stat_path_pf, np.array(err_pf))
         save_data(stat_path_de, np.array(err_de))
-        save_data(stat_path_ransac, np.array(err_ransac))
-        save_data(stat_path_icp, np.array(err_icp))
+        #save_data(stat_path_ransac, np.array(err_ransac))
+        #save_data(stat_path_icp, np.array(err_icp))
         
             
     print("Done Simulation!")

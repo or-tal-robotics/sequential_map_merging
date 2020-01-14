@@ -179,7 +179,7 @@ def RANSACMapMatcher(target_map, origin_map):
         origin_map = origin_map[0:target_map.shape[0]]
     elif origin_map.shape[0] < target_map.shape[0]:
         target_map = target_map[0:origin_map.shape[0]]
-    model_robust, inliers =  ((origin_map, target_map), AffineTransform, min_samples=3,
+    model_robust, inliers =  ransac((origin_map, target_map), AffineTransform, min_samples=3,
     residual_threshold=2, max_trials=100)
     T_RANSAC = [model_robust.translation[0],model_robust.translation[1],model_robust.rotation]
     return T_RANSAC
@@ -195,3 +195,24 @@ def ICPMapMatcher(src, dst, init_pose=(0,0,0), no_iterations = 13):
         Tr = np.array([[np.cos(T[2]),-np.sin(T[2])],[np.sin(T[2]), np.cos(T[2])]])
         src = cv2.transform(src, Tr)[:,:,0]
     return T
+
+
+
+def OccupancyGrid2LandmarksArray(OccupancyGridMsg, filter_map = None):
+    map = np.array(OccupancyGridMsg.data , dtype = np.float32)
+    N = np.sqrt(map.shape)[0].astype(np.int32)
+    Re = np.copy(map.reshape((N,N)))
+    scale = OccupancyGridMsg.info.resolution
+    landMarksArray = (np.argwhere( Re == 100 ) * scale)
+    landMarksArray_empty = (np.argwhere( Re == 0 ) * scale)
+    if landMarksArray.shape[0] != 0:
+        if filter_map is not None:
+            if len(landMarksArray) > filter_map:
+                a = len(landMarksArray)//filter_map
+            else:
+                a = 1
+            landMarksArray = landMarksArray[np.arange(0,len(landMarksArray),a)]
+        return landMarksArray, landMarksArray_empty
+    else:
+        print("Error: Empty map!")
+        return "empty" , "empty"

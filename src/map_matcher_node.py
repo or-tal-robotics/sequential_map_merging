@@ -9,7 +9,7 @@ import pandas as pd
 from nav_msgs.msg import OccupancyGrid, MapMetaData
 from tf.transformations import quaternion_from_euler
 import rospkg 
-from map_matcher import send_map_ros_msg, rotate_map, ParticleFilterMapMatcher
+from map_matcher import send_map_ros_msg, rotate_map, ParticleFilterMapMatcher, OccupancyGrid2LandmarksArray
 
 
 
@@ -18,24 +18,7 @@ rospack = rospkg.RosPack()
 packadge_path = rospack.get_path('sequential_map_merging')
 global_publisher = rospy.Publisher('global_map', OccupancyGrid, queue_size = 10) 
 
-def OccupancyGrid2LandmarksArray(OccupancyGridMsg, filter_map = None):
-    map = np.array(OccupancyGridMsg.data , dtype = np.float32)
-    N = np.sqrt(map.shape)[0].astype(np.int32)
-    Re = np.copy(map.reshape((N,N)))
-    scale = OccupancyGridMsg.info.resolution
-    landMarksArray = (np.argwhere( Re == 100 ) * scale)
-    landMarksArray_empty = (np.argwhere( Re == 0 ) * scale)
-    if landMarksArray.shape[0] != 0:
-        if filter_map is not None:
-            if len(landMarksArray1) > filter_map:
-                a = len(landMarksArray1)//filter_map
-            else:
-                a = 1
-            landMarksArray = landMarksArray[np.arange(0,len(landMarksArray),a)]
-        return landMarksArray, landMarksArray_empty
-    else:
-        print("Error: Empty map!")
-        return "empty" , "empty"
+
 
 
 
