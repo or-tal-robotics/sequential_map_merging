@@ -62,7 +62,7 @@ def likelihood(target_map_rotated, origin_map_nbrs, var, origin_empty_map_nbrs=N
     else:
         d, _ = origin_map_nbrs.kneighbors(target_map_rotated)
         d_empty, _ = origin_empty_map_nbrs.kneighbors(target_map_rotated)
-        is_bad = d_empty > res 
+        is_bad = d_empty > 0.5*res 
         #print(np.mean(is_bad))
         p = np.mean(np.multiply(is_bad,(1/(np.sqrt(2*np.pi*var)))*np.exp(-np.power(d,2)/(2*var)))) + 1e-200
         #p = np.mean(is_bad)*p
@@ -171,12 +171,35 @@ class ParticleFilterMapMatcher():
         else:
             self.W[:, self.indicate] = L
         self.indicate += 1
+    
+    def refinement(self,  target_map, origin_map_nbrs, res = 0.01, Np = 1000):
+        X_try = np.empty((3))
+        W_temp = np.zeros((Np))
+        X_temp = self.X_map
+        tempMap = rotate_map(target_map, X_temp)
+        W_temp = likelihood(tempMap, origin_map_nbrs, self.R_var, origin_empty_map_nbrs=None , res = res)
+        j = 0
+        for i in range(1,self.Np):
+            n = np.random.choice(10)
+            X_try[0] = np.random.normal(self.best_10[n,0], 0.2/np.sqrt(i))
+            X_try[1] = np.random.normal(self.best_10[n,1], 0.2/np.sqrt(i))
+            X_try[2] = np.random.normal(self.best_10[n,2], 0.1/np.sqrt(i))
+            tempMap = rotate_map(target_map, X_try)
+            W_try =  likelihood(tempMap, origin_map_nbrs, self.R_var, origin_empty_map_nbrs=None , res = res)
+            if W_try > W_temp:
+                W_temp = W_try
+                X_temp = X_try
+                j+=1
+        print("Finishet refinement with "+str(j)+" updates")
+        return X_temp
+
 
     def resample(self):
         print("performing resample!")
         p = np.dot(self.W, self.filter)
         p = p/np.sum(p)
         self.X_map = self.X[np.argmax(p)]
+        self.best_10 = self.X[p.argsort()[-10:][::-1]]
         idxs = np.random.choice(a = self.Np, size = self.Np,p = p)
         self.X = self.X[idxs]
         self.X[:,0] = self.X[:,0] + np.random.normal(0.0, self.R_xy, size=self.X[:,0].shape) + np.random.randint(-1,2) * np.random.choice(a = 5, size = self.X[:,0].shape,p = self.P_xy)*self.xy_mul
