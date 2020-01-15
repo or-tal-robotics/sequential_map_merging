@@ -87,10 +87,10 @@ class ParticleFilterMapMatcher():
     N_x = 20,
     N_y = 20,
     R_var = 0.1,
-    Q_xy = 0.1,
-    Q_theta = 0.1,
-    R_xy = 0.2,
-    R_theta = 0.2,
+    Q_xy = 0.01,
+    Q_theta = 0.01,
+    R_xy = 0.1,
+    R_theta = 0.1,
     P_theta = [0.6,0.1,0.1,0.2],
     P_xy = [0.7, 0.05, 0.1, 0.05,0.1],
     xy_mul = 2.0):
@@ -177,7 +177,7 @@ class ParticleFilterMapMatcher():
         W_temp = np.zeros((Np))
         X_temp = self.X_map
         tempMap = rotate_map(target_map, X_temp)
-        W_temp = likelihood(tempMap, origin_map_nbrs, self.R_var, origin_empty_map_nbrs=None , res = res)
+        W_temp = likelihood(tempMap, origin_map_nbrs, 0.001, origin_empty_map_nbrs=None , res = res)
         j = 0
         for i in range(1,self.Np):
             n = np.random.choice(10)
@@ -185,7 +185,7 @@ class ParticleFilterMapMatcher():
             X_try[1] = np.random.normal(self.best_10[n,1], 0.2/np.sqrt(i))
             X_try[2] = np.random.normal(self.best_10[n,2], 0.1/np.sqrt(i))
             tempMap = rotate_map(target_map, X_try)
-            W_try =  likelihood(tempMap, origin_map_nbrs, self.R_var, origin_empty_map_nbrs=None , res = res)
+            W_try =  likelihood(tempMap, origin_map_nbrs, 0.001, origin_empty_map_nbrs=None , res = res)
             if W_try > W_temp:
                 W_temp = W_try
                 X_temp = X_try

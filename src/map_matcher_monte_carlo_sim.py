@@ -30,13 +30,13 @@ ground_trouth_transformation_map1 = np.array([-4.34979117,  7.94182293,  1.65979
 
 rospack = rospkg.RosPack()
 packadge_path = rospack.get_path('sequential_map_merging')
-file_path = packadge_path + '/maps/map1.bag'
-stat_path_de =  packadge_path + '/statistics/csv/MonteCarloStatistics_de_map1.csv'
-stat_path_pf =  packadge_path + '/statistics/csv/MonteCarloStatistics_pf_map1.csv'
+file_path = packadge_path + '/maps/map10_v2.bag'
+stat_path_de =  packadge_path + '/statistics/csv/MonteCarloStatistics_de_map10v2.csv'
+stat_path_pf =  packadge_path + '/statistics/csv/MonteCarloStatistics_pf_map10v2.csv'
 #stat_path_ransac =  packadge_path + '/statistics/csv/MonteCarloStatistics_ransac_map5Disap.csv'
 #stat_path_icp =  packadge_path + '/statistics/csv/MonteCarloStatistics_icp_map5Disap.csv'
 monte_carlo_runs = 10
-ground_trouth_transformation = ground_trouth_transformation_map1
+ground_trouth_transformation = ground_trouth_transformation_map10
 kidnepped_flag = False
 
 def save_data(file_path, data):               
@@ -138,7 +138,8 @@ if __name__ == '__main__':
                 #X_icp = ICPMapMatcher(landMarksArray2, landMarksArray1)
                 if model.indicate == model.N_history:
                     model.resample()
-                    err_pf.append(get_error(model.X_map, ground_trouth_transformation))
+                    X_pf = model.refinement(landMarksArray2, nbrs, res = scale1, Np = 1000)
+                    err_pf.append(get_error(X_pf, ground_trouth_transformation))
                     err_de.append(get_error(X_de, ground_trouth_transformation))
                     #err_ransac.append(get_error(X_ransac, ground_trouth_transformation))
                     #err_icp.append(get_error(X_icp, ground_trouth_transformation))

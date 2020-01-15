@@ -14,7 +14,7 @@ from map_matcher import send_map_ros_msg, rotate_map, ParticleFilterMapMatcher, 
 
 rospack = rospkg.RosPack()
 packadge_path = rospack.get_path('sequential_map_merging')
-file_path = packadge_path + '/maps/map1.bag'
+file_path = packadge_path + '/maps/map10_v2.bag'
 origin_publisher = rospy.Publisher('origin_map', OccupancyGrid, queue_size = 10) 
 global_publisher = rospy.Publisher('global_map', OccupancyGrid, queue_size = 10) 
 target_publisher = rospy.Publisher('target_map', OccupancyGrid, queue_size = 10) 
@@ -31,7 +31,7 @@ if __name__ == '__main__':
             break
         if topic == '/ABot1/map':
             map1_msg = msg
-            landMarksArray1, landMarksArray1_empty = OccupancyGrid2LandmarksArray(map1_msg, filter_map = 500)
+            landMarksArray1, landMarksArray1_empty = OccupancyGrid2LandmarksArray(map1_msg, filter_map = 1000)
             scale1 = msg.info.resolution
             if landMarksArray1 != "empty":
                 if init1 == 1:
@@ -64,14 +64,15 @@ if __name__ == '__main__':
             model.predict()
             #model.update(landMarksArray2, nbrs, nbrs_empty, scale1)
             model.update(landMarksArray2, nbrs, nbrs_empty, scale1)
+            
             #X_de = DEMapMatcher(nbrs, landMarksArray2, X_de)
             #X_ransac = RANSACMapMatcher(landMarksArray1, landMarksArray2)
             if model.indicate == model.N_history:
                 model.resample()
-
-                print(model.X_map)
-                rotated_map = rotate_map(landMarksArray2, model.X_map)
-                rotated_empty_map = rotate_map(landMarksArray2_empty, model.X_map)
+                X_pf = model.refinement(landMarksArray2, nbrs, res = scale1, Np = 1000)
+                print(X_pf)
+                rotated_map = rotate_map(landMarksArray2, X_pf)
+                rotated_empty_map = rotate_map(landMarksArray2_empty, X_pf)
                 estimated_global_map = np.concatenate([landMarksArray1,rotated_map], axis=0)
                 estimated_global_empty_map = np.concatenate([landMarksArray1_empty,rotated_empty_map], axis=0)
                 send_map_ros_msg(estimated_global_map, estimated_global_empty_map, global_publisher, resolution=scale1)
