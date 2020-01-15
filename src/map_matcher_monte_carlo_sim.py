@@ -20,19 +20,24 @@ ground_trouth_transformation_map10_s1 = np.array([ 0.87207527, 20.5153013,   1.8
 ground_trouth_transformation_map10_s2 = np.array([13.84275813, 15.56581749,  2.84300749])
 ground_trouth_transformation_map5_s1 = np.array([6.70767783, 5.53418701, 1.56826218])
 ground_trouth_transformation_map5_s2 = np.array([ 5.11960965, -8.43495044,  2.0768514 ])
+ground_trouth_transformation_map1 = np.array([-4.34979117,  7.94182293,  1.65979919])
+
+
+
+
 
 
 
 rospack = rospkg.RosPack()
 packadge_path = rospack.get_path('sequential_map_merging')
-file_path = packadge_path + '/maps/map5Disap.bag'
-stat_path_de =  packadge_path + '/statistics/csv/MonteCarloStatistics_de_map5Disap.csv'
-stat_path_pf =  packadge_path + '/statistics/csv/MonteCarloStatistics_pf_map5Disap.csv'
+file_path = packadge_path + '/maps/map1.bag'
+stat_path_de =  packadge_path + '/statistics/csv/MonteCarloStatistics_de_map1.csv'
+stat_path_pf =  packadge_path + '/statistics/csv/MonteCarloStatistics_pf_map1.csv'
 #stat_path_ransac =  packadge_path + '/statistics/csv/MonteCarloStatistics_ransac_map5Disap.csv'
 #stat_path_icp =  packadge_path + '/statistics/csv/MonteCarloStatistics_icp_map5Disap.csv'
-monte_carlo_runs = 50
-ground_trouth_transformation = ground_trouth_transformation_map5_s1
-kidnepped_flag = True
+monte_carlo_runs = 10
+ground_trouth_transformation = ground_trouth_transformation_map1
+kidnepped_flag = False
 
 def save_data(file_path, data):               
         df = pd.DataFrame([data])
@@ -48,13 +53,20 @@ def get_error(T, ground_trouth):
 if __name__ == '__main__':
     bag = rosbag.Bag(file_path)
     rospy.init_node('offline_map_matcher_monte_carlo_tester_kidneped')
-    Np = rospy.get_param("/sequential_map_matcher/n_particles",500)
+    Np = rospy.get_param("/sequential_map_matcher/n_particles",1500)
     Nf = rospy.get_param("/sequential_map_matcher/n_observation",500)
     N_history = rospy.get_param("/sequential_map_matcher/n_history",5)
     N_theta = rospy.get_param("/sequential_map_matcher/n_theta",50)
     N_x = rospy.get_param("/sequential_map_matcher/n_x",20)
     N_y = rospy.get_param("/sequential_map_matcher/n_y",20)
     R_var = rospy.get_param("/sequential_map_matcher/R_var",0.1)
+    Q_xy = rospy.get_param("/sequential_map_matcher/Q_xy", 0.1)
+    Q_theta = rospy.get_param("/sequential_map_matcher/Q_theta",0.1)
+    R_xy = rospy.get_param("/sequential_map_matcher/R_xy",0.2)
+    R_theta = rospy.get_param("/sequential_map_matcher/R_theta",0.2)
+    P_theta = rospy.get_param("/sequential_map_matcher/P_theta",[0.6, 0.1, 0.1, 0.2])
+    P_xy = rospy.get_param("/sequential_map_matcher/P_xy",[0.7, 0.05, 0.1, 0.05, 0.1])
+    xy_mul = rospy.get_param("/sequential_map_matcher/xy_mul",2.0)
 
     pf_stat = []
     de_stat = []
@@ -74,12 +86,12 @@ if __name__ == '__main__':
                 map1_msg = msg
                 scale1 = msg.info.resolution
                 landMarksArray1, landMarksArray1_empty = OccupancyGrid2LandmarksArray(map1_msg, filter_map = Nf)
-                if landMarksArray1.shape[0] != 0:
+                if landMarksArray1 != "empty":
                     if init1 == 1:
                         cm1 = np.sum(np.transpose(landMarksArray1),axis=1)/len(landMarksArray1)
                     landMarksArray1 = landMarksArray1 - cm1
                     landMarksArray1_empty = landMarksArray1_empty - cm1
-                    nbrs = NearestNeighbors(n_neighbors= 1, algorithm='ball_tree').fit(landMarksArray1_rc)
+                    nbrs = NearestNeighbors(n_neighbors= 1, algorithm='ball_tree').fit(landMarksArray1)
                     nbrs_empty = NearestNeighbors(n_neighbors= 1, algorithm='ball_tree').fit(landMarksArray1_empty)
                     init1 = 0
                 else:
@@ -87,13 +99,9 @@ if __name__ == '__main__':
 
             if topic == '/ABot2/map':
                 map2_msg = msg
-                map2 = np.array(msg.data , dtype = np.float32)
-                N2 = np.sqrt(map2.shape)[0].astype(np.int32)
-                Re2 = np.copy(map2.reshape((N2,N2)))
+                landMarksArray2, landMarksArray2_empty = OccupancyGrid2LandmarksArray(map2_msg)
                 scale2 = msg.info.resolution
-                landMarksArray2 = (np.argwhere( Re2 == 100 ) * scale2)
-                landMarksArray2_empty = (np.argwhere( Re2 == 0 ) * scale2)
-                if landMarksArray2.shape[0] != 0:
+                if landMarksArray2 != "empty":
                     if init2 == 1:
                         cm2 = np.sum(np.transpose(landMarksArray2),axis=1)/len(landMarksArray2) 
                     landMarksArray2 = landMarksArray2 - cm2
@@ -102,7 +110,22 @@ if __name__ == '__main__':
                 else:
                     continue
             if init == 1 and init1 == 0 and init2 == 0:
-                model = ParticleFilterMapMatcher(nbrs, landMarksArray2, Np, N_history, N_theta, N_x, N_y, R_var)
+                model = ParticleFilterMapMatcher(nbrs,
+                                                 landMarksArray2,
+                                                 Np,
+                                                 N_history,
+                                                 N_theta,
+                                                 N_x,
+                                                 N_y,
+                                                 R_var,
+                                                 Q_xy,
+                                                 Q_theta,
+                                                 R_xy,
+                                                 R_theta,
+                                                 P_theta,
+                                                 P_xy,
+                                                 xy_mul)
+
                 X_de = DEMapMatcher(nbrs, landMarksArray2)
                 #X_ransac = RANSACMapMatcher(landMarksArray2, landMarksArray1)
                 #X_icp = ICPMapMatcher(landMarksArray2, landMarksArray1)

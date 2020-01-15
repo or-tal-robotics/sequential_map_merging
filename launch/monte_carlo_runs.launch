@@ -2,7 +2,7 @@
 
 <launch>
 
-<rosparam file="$(find sequential_map_merging)/config/sequential_map_matcher.yaml" />
+<rosparam file="$(find sequential_map_merging)/config/sequential_map_matcher_offline.yaml" />
 <node pkg="sequential_map_merging" type="map_matcher_monte_carlo_sim.py" name="map_matcher0" output="screen"/>
 <node pkg="sequential_map_merging" type="map_matcher_monte_carlo_sim.py" name="map_matcher1" output="screen"/>
 <node pkg="sequential_map_merging" type="map_matcher_monte_carlo_sim.py" name="map_matcher2" output="screen"/>
