@@ -10,9 +10,9 @@ import matplotlib.pyplot as plt
 import numpy as np
 import matplotlib._color_data as mcd
 
-data_de = pd.read_csv("csv/MonteCarloStatistics_de_map5Disap.csv", sep='\t')
+data_de = pd.read_csv("csv/MonteCarloStatistics_de_map1.csv", sep='\t')
 data_de = data_de.values
-data_pf = pd.read_csv("csv/MonteCarloStatistics_pf_map5Disap.csv",sep='\t')
+data_pf = pd.read_csv("csv/MonteCarloStatistics_pf_map1.csv",sep='\t')
 data_pf = data_pf.values
 avg_de = np.mean(data_de, axis=0)
 avg_pf = np.mean(data_pf, axis=0)
@@ -41,7 +41,7 @@ plt.plot(avg_de, color = 'r', label = "DENDT (average)", linewidth = 1.7)
 plt.plot(avg_pf, color = 'b', label = "PF (average)" , linewidth = 1.7)
 plt.plot(best_run_de_overall, color = 'r', label = "DENDT (best one)", ls='dotted')
 plt.plot(best_run_pf_overall, color = 'b', label = "PF (best one)", ls='dotted')
-plt.xlim(1,150)
+plt.xlim(1,200)
 #plt.legend()
 plt.xlabel("k")
 plt.ylabel("MSE")

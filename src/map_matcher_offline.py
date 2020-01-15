@@ -14,7 +14,7 @@ from map_matcher import send_map_ros_msg, rotate_map, ParticleFilterMapMatcher, 
 
 rospack = rospkg.RosPack()
 packadge_path = rospack.get_path('sequential_map_merging')
-file_path = packadge_path + '/maps/map5Disap.bag'
+file_path = packadge_path + '/maps/map1.bag'
 origin_publisher = rospy.Publisher('origin_map', OccupancyGrid, queue_size = 10) 
 global_publisher = rospy.Publisher('global_map', OccupancyGrid, queue_size = 10) 
 target_publisher = rospy.Publisher('target_map', OccupancyGrid, queue_size = 10) 
@@ -31,7 +31,7 @@ if __name__ == '__main__':
             break
         if topic == '/ABot1/map':
             map1_msg = msg
-            landMarksArray1, landMarksArray1_empty = OccupancyGrid2LandmarksArray(map1_msg, filter_map = Nf)
+            landMarksArray1, landMarksArray1_empty = OccupancyGrid2LandmarksArray(map1_msg, filter_map = 500)
             scale1 = msg.info.resolution
             if landMarksArray1 != "empty":
                 if init1 == 1:
@@ -65,8 +65,7 @@ if __name__ == '__main__':
             #model.update(landMarksArray2, nbrs, nbrs_empty, scale1)
             model.update(landMarksArray2, nbrs, nbrs_empty, scale1)
             #X_de = DEMapMatcher(nbrs, landMarksArray2, X_de)
-            X_ransac = RANSACMapMatcher(landMarksArray1, landMarksArray2)
-            print(X_ransac)
+            #X_ransac = RANSACMapMatcher(landMarksArray1, landMarksArray2)
             if model.indicate == model.N_history:
                 model.resample()
 
