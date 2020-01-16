@@ -4,7 +4,7 @@
   
 
 <include file="$(find sequential_map_merging)/launch/empty_world.launch" >
-  <arg name="world_name" value="$(find sequential_map_merging)/worlds/map1_world/model.sdf"/>
+  <arg name="world_name" value="$(find sequential_map_merging)/worlds/map4_world/model.sdf"/>
 </include>
 
 <!--#############################################################-->
@@ -20,7 +20,7 @@
   </node>
 <param name="robot_description1" command="$(find xacro)/xacro '$(find sequential_map_merging)/urdf/ABot.urdf.xacro'" />
   <!-- push ABot_description to factory and spawn robot in gazebo -->
-  <node name="spawn_ABot" pkg="gazebo_ros" type="spawn_model" args=" -x 11.5 -y -4.5 -Y 3.14 -urdf -model ABot1 -param robot_description1" respawn="false" output="screen" />
+  <node name="spawn_ABot" pkg="gazebo_ros" type="spawn_model" args=" -x 11.5 -y 0.42 -Y 3.14 -urdf -model ABot1 -param robot_description1" respawn="false" output="screen" />
 
 
 <node pkg="hector_mapping" type="hector_mapping" name="hector_mapping" output="screen">

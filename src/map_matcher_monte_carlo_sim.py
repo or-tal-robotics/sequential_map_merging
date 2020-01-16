@@ -20,7 +20,13 @@ ground_trouth_transformation_map10_s1 = np.array([ 0.87207527, 20.5153013,   1.8
 ground_trouth_transformation_map10_s2 = np.array([13.84275813, 15.56581749,  2.84300749])
 ground_trouth_transformation_map5_s1 = np.array([6.70767783, 5.53418701, 1.56826218])
 ground_trouth_transformation_map5_s2 = np.array([ 5.11960965, -8.43495044,  2.0768514 ])
-ground_trouth_transformation_map1 = np.array([-4.34979117,  7.94182293,  1.65979919])
+ground_trouth_transformation_map1 = np.array([-4.34062588, 11.23243629,  1.60253341])
+ground_trouth_transformation_map1v2 = np.array([-4.12802754, 12.34509795,  1.58907605])
+ground_trouth_transformation_map4 = np.array([-3.32452954, 11.78747777,  1.58070866])
+
+
+
+
 
 
 
@@ -30,13 +36,13 @@ ground_trouth_transformation_map1 = np.array([-4.34979117,  7.94182293,  1.65979
 
 rospack = rospkg.RosPack()
 packadge_path = rospack.get_path('sequential_map_merging')
-file_path = packadge_path + '/maps/map10_v2.bag'
-stat_path_de =  packadge_path + '/statistics/csv/MonteCarloStatistics_de_map10v2.csv'
-stat_path_pf =  packadge_path + '/statistics/csv/MonteCarloStatistics_pf_map10v2.csv'
+file_path = packadge_path + '/maps/map4.bag'
+stat_path_de =  packadge_path + '/statistics/csv/MonteCarloStatistics_de_map4.csv'
+stat_path_pf =  packadge_path + '/statistics/csv/MonteCarloStatistics_pf_map4.csv'
 #stat_path_ransac =  packadge_path + '/statistics/csv/MonteCarloStatistics_ransac_map5Disap.csv'
 #stat_path_icp =  packadge_path + '/statistics/csv/MonteCarloStatistics_icp_map5Disap.csv'
 monte_carlo_runs = 10
-ground_trouth_transformation = ground_trouth_transformation_map10
+ground_trouth_transformation = ground_trouth_transformation_map4
 kidnepped_flag = False
 
 def save_data(file_path, data):               
@@ -91,8 +97,8 @@ if __name__ == '__main__':
                         cm1 = np.sum(np.transpose(landMarksArray1),axis=1)/len(landMarksArray1)
                     landMarksArray1 = landMarksArray1 - cm1
                     landMarksArray1_empty = landMarksArray1_empty - cm1
-                    nbrs = NearestNeighbors(n_neighbors= 1, algorithm='ball_tree').fit(landMarksArray1)
-                    nbrs_empty = NearestNeighbors(n_neighbors= 1, algorithm='ball_tree').fit(landMarksArray1_empty)
+                    nbrs = NearestNeighbors(n_neighbors= 1, algorithm='kd_tree').fit(landMarksArray1)
+                    nbrs_empty = NearestNeighbors(n_neighbors= 1, algorithm='kd_tree').fit(landMarksArray1_empty)
                     init1 = 0
                 else:
                     continue
@@ -132,7 +138,7 @@ if __name__ == '__main__':
                 init = 0
             elif init == 0 and init1 == 0 and init2 == 0:
                 model.predict()
-                model.update(landMarksArray2, nbrs, nbrs_empty, scale1)
+                model.update(landMarksArray2, nbrs,  origin_empty_map_nbrs=None , res = scale1)
                 X_de = DEMapMatcher(nbrs, landMarksArray2, X_de)
                 #X_ransac = RANSACMapMatcher(landMarksArray2, landMarksArray1)
                 #X_icp = ICPMapMatcher(landMarksArray2, landMarksArray1)
