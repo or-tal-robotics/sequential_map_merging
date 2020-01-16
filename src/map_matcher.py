@@ -172,17 +172,17 @@ class ParticleFilterMapMatcher():
             self.W[:, self.indicate] = L
         self.indicate += 1
     
-    def refinement(self,  target_map, origin_map_nbrs, res = 0.01, Np = 1000):
+    def refinement(self,  target_map, origin_map_nbrs, res = 0.01, Np = 2000):
         X_try = np.empty((3))
         W_temp = np.zeros((Np))
         X_temp = self.X_map
         tempMap = rotate_map(target_map, X_temp)
         W_temp = likelihood(tempMap, origin_map_nbrs, 0.001, origin_empty_map_nbrs=None , res = res)
         j = 0
-        for i in range(1,self.Np):
+        for i in range(1,Np):
             n = np.random.choice(10)
-            X_try[0] = np.random.normal(self.best_10[n,0], 0.2/np.sqrt(i))
-            X_try[1] = np.random.normal(self.best_10[n,1], 0.2/np.sqrt(i))
+            X_try[0] = np.random.normal(self.best_10[n,0], 0.5/np.sqrt(i))
+            X_try[1] = np.random.normal(self.best_10[n,1], 0.5/np.sqrt(i))
             X_try[2] = np.random.normal(self.best_10[n,2], 0.1/np.sqrt(i))
             tempMap = rotate_map(target_map, X_try)
             W_try =  likelihood(tempMap, origin_map_nbrs, 0.001, origin_empty_map_nbrs=None , res = res)
