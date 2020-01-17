@@ -23,7 +23,8 @@ ground_trouth_transformation_map5_s2 = np.array([ 5.11960965, -8.43495044,  2.07
 ground_trouth_transformation_map1 = np.array([-4.34062588, 11.23243629,  1.60253341])
 ground_trouth_transformation_map1v2 = np.array([-4.12802754, 12.34509795,  1.58907605])
 ground_trouth_transformation_map4 = np.array([-3.32452954, 11.78747777,  1.58070866])
-
+ground_trouth_transformation_map10v3 = np.array([-8.20894135, 24.31673204,  1.57318057]
+)
 
 
 
@@ -36,13 +37,13 @@ ground_trouth_transformation_map4 = np.array([-3.32452954, 11.78747777,  1.58070
 
 rospack = rospkg.RosPack()
 packadge_path = rospack.get_path('sequential_map_merging')
-file_path = packadge_path + '/maps/map4.bag'
-stat_path_de =  packadge_path + '/statistics/csv/MonteCarloStatistics_de_map4.csv'
-stat_path_pf =  packadge_path + '/statistics/csv/MonteCarloStatistics_pf_map4.csv'
+file_path = packadge_path + '/maps/map10v3.bag'
+stat_path_de =  packadge_path + '/statistics/csv/MonteCarloStatistics_de_map10v3.csv'
+stat_path_pf =  packadge_path + '/statistics/csv/MonteCarloStatistics_pf_map10v3.csv'
 #stat_path_ransac =  packadge_path + '/statistics/csv/MonteCarloStatistics_ransac_map5Disap.csv'
 #stat_path_icp =  packadge_path + '/statistics/csv/MonteCarloStatistics_icp_map5Disap.csv'
 monte_carlo_runs = 10
-ground_trouth_transformation = ground_trouth_transformation_map4
+ground_trouth_transformation = ground_trouth_transformation_map10v3
 kidnepped_flag = False
 
 def save_data(file_path, data):               

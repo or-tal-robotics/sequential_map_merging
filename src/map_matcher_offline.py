@@ -14,7 +14,7 @@ from map_matcher import send_map_ros_msg, rotate_map, ParticleFilterMapMatcher, 
 
 rospack = rospkg.RosPack()
 packadge_path = rospack.get_path('sequential_map_merging')
-file_path = packadge_path + '/maps/map4.bag'
+file_path = packadge_path + '/maps/map10v3.bag'
 origin_publisher = rospy.Publisher('origin_map', OccupancyGrid, queue_size = 10) 
 global_publisher = rospy.Publisher('global_map', OccupancyGrid, queue_size = 10) 
 target_publisher = rospy.Publisher('target_map', OccupancyGrid, queue_size = 10) 
@@ -63,7 +63,7 @@ if __name__ == '__main__':
         elif init == 0 and init1 == 0 and init2 == 0:
             model.predict()
             #model.update(landMarksArray2, nbrs, nbrs_empty, scale1)
-            model.update(landMarksArray2, nbrs, nbrs_empty, scale1)
+            model.update(landMarksArray2, nbrs, origin_empty_map_nbrs=None , res = scale1)
             
             #X_de = DEMapMatcher(nbrs, landMarksArray2, X_de)
             #X_ransac = RANSACMapMatcher(landMarksArray1, landMarksArray2)
