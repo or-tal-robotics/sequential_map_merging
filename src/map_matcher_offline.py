@@ -75,9 +75,9 @@ if __name__ == '__main__':
                 rotated_empty_map = rotate_map(landMarksArray2_empty, X_pf)
                 estimated_global_map = np.concatenate([landMarksArray1,rotated_map], axis=0)
                 estimated_global_empty_map = np.concatenate([landMarksArray1_empty,rotated_empty_map], axis=0)
-                send_map_ros_msg(estimated_global_map, estimated_global_empty_map, global_publisher, resolution=scale1)
-                send_map_ros_msg(landMarksArray1, landMarksArray1_empty, origin_publisher, resolution=scale1)
-                send_map_ros_msg(landMarksArray2,landMarksArray2_empty , target_publisher, resolution=scale2)
+                send_map_ros_msg(estimated_global_map, estimated_global_empty_map, global_publisher,frame_id='pf_map', resolution=scale1)
+                send_map_ros_msg(landMarksArray1, landMarksArray1_empty, origin_publisher,frame_id='/robot1/map', resolution=scale1)
+                send_map_ros_msg(landMarksArray2,landMarksArray2_empty , target_publisher,frame_id='/robot2/map', resolution=scale2)
 
     
 

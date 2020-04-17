@@ -8,9 +8,9 @@ from sklearn.neighbors import NearestNeighbors
 import cv2
 
 
-def send_map_ros_msg(landmarks, empty_landmarks, publisher, resolution = 0.01, width = 2048, height = 2048):
+def send_map_ros_msg(landmarks, empty_landmarks, publisher,frame_id, resolution = 0.01, width = 2048, height = 2048):
     map_msg = OccupancyGrid()
-    map_msg.header.frame_id = 'map'
+    map_msg.header.frame_id = frame_id
     map_msg.info.resolution = resolution
     map_msg.info.width = width
     map_msg.info.height = height
